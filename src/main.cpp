@@ -5,6 +5,7 @@
 #include "ui/DidPage.h"
 #include "ui/RawPage.h"
 #include "ui/SessionManager.h"
+#include "ui/SettingsPage.h"
 #include "uds/DidDatabase.h"
 
 #include <ftxui/dom/elements.hpp>
@@ -35,6 +36,7 @@ int main() {
   DidPage did_page(app);
   RawPage raw_page(app);
   SessionManager session_manager(app);
+  SettingsPage settings_page(app);
 
   auto status_component = status_bar.Build();
   auto nav_component = nav_bar.Build();
@@ -42,12 +44,9 @@ int main() {
   auto did_component = did_page.Build();
   auto raw_component = raw_page.Build();
   auto session_component = session_manager.Build();
+  auto settings_component = settings_page.Build();
 
   NavPage current_page = NavPage::Dtc;
-
-  app.SetOnResponse([&](const std::string& msg) {
-    spdlog::info("Status: {}", msg);
-  });
 
   nav_bar.SetOnPageChange([&](NavPage page) {
     current_page = page;
@@ -59,6 +58,7 @@ int main() {
           did_component,
           raw_component,
           session_component,
+          settings_component,
       },
       (int*)&current_page);
 
@@ -91,16 +91,12 @@ int main() {
     }
 
     if (event == Event::F5) {
-      if (current_page == NavPage::Dtc) {
-        dtc_page.Refresh();
-      }
+      if (current_page == NavPage::Dtc) dtc_page.Refresh();
       return true;
     }
 
     if (event == Event::F6) {
-      if (current_page == NavPage::Dtc) {
-        app.ClearDtc();
-      }
+      if (current_page == NavPage::Dtc) app.ClearDtc();
       return true;
     }
 

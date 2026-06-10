@@ -1,9 +1,8 @@
 set(TEST_SOURCES
   test_doip.cpp
   test_uds.cpp
-  ${CMAKE_SOURCE_DIR}/src/uds/UdsClient.cpp
+  ${CMAKE_SOURCE_DIR}/src/uds/UdsMessage.cpp
   ${CMAKE_SOURCE_DIR}/src/uds/DidDatabase.cpp
-  ${CMAKE_SOURCE_DIR}/src/doip/DoipClient.cpp
 )
 
 add_executable(fuse-diag-tests ${TEST_SOURCES})
@@ -16,6 +15,7 @@ target_link_libraries(fuse-diag-tests PRIVATE
   GTest::gtest
   GTest::gtest_main
   doip_lib
+  uds-c
   nlohmann_json::nlohmann_json
   spdlog::spdlog
   Threads::Threads

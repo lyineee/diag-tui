@@ -13,6 +13,11 @@ public:
   ftxui::Component Build();
 
 private:
+  void DoRead(uint16_t did);
+  void DoWrite();
+  void DoSearch();
+  std::string FormatResponse(uint16_t did, const std::vector<uint8_t>& data);
+
   App& app_;
   ftxui::Component renderer_;
   ftxui::Component input_did_;
@@ -20,13 +25,12 @@ private:
   ftxui::Component btn_read_;
   ftxui::Component btn_write_;
   ftxui::Component btn_search_;
+  ftxui::Component did_menu_;
   std::string did_input_;
   std::string data_input_;
   std::string result_text_;
   int selected_did_index_{0};
+  uint16_t last_read_did_{0};
   std::vector<DidEntry> displayed_dids_;
-
-  void DoRead();
-  void DoWrite();
-  void DoSearch();
+  std::vector<std::string> did_menu_items_;
 };

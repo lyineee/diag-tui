@@ -14,25 +14,20 @@ using namespace ftxui;
 DidPage::DidPage(App& app) : app_(app) {
   DidDatabase::Instance().Load("config/did_database.json");
   displayed_dids_ = DidDatabase::Instance().GetAll();
+  for (auto& e : displayed_dids_) {
+    std::stringstream ss;
+    ss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << e.did;
+    did_menu_items_.push_back(ss.str() + "  " + e.name);
+  }
 }
 
-void DidPage::DoRead() {
-  if (did_input_.empty()) return;
-  try {
-    uint16_t did = std::stoul(did_input_, nullptr, 16);
-    auto entry = DidDatabase::Instance().Find(did);
-    std::stringstream ss;
-    ss << "Reading DID 0x" << std::hex << std::uppercase << did << "\n";
-    if (entry.did != 0) {
-      ss << "Name: " << entry.name << "\n";
-      ss << "Desc: " << entry.description << "\n";
-      ss << "Size: " << (int)entry.data_size << " bytes";
-    }
-    result_text_ = ss.str();
-    app_.ReadDid(did);
-  } catch (...) {
-    result_text_ = "Invalid DID format";
-  }
+void DidPage::DoRead(uint16_t did) {
+  auto entry = DidDatabase::Instance().Find(did);
+  last_read_did_ = did;
+  std::stringstream ss;
+  ss << "Reading DID 0x" << std::hex << std::uppercase << did << "...";
+  result_text_ = ss.str();
+  app_.ReadDid(did);
 }
 
 void DidPage::DoWrite() {
@@ -72,15 +67,63 @@ void DidPage::DoSearch() {
       }
     } catch (...) {}
   }
+  did_menu_items_.clear();
+  for (auto& e : displayed_dids_) {
+    std::stringstream ss;
+    ss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << e.did;
+    did_menu_items_.push_back(ss.str() + "  " + e.name);
+  }
+}
+
+std::string DidPage::FormatResponse(uint16_t did, const std::vector<uint8_t>& data) {
+  auto entry = DidDatabase::Instance().Find(did);
+  std::stringstream ss;
+  ss << "DID:  0x" << std::hex << std::uppercase << did << "\n";
+  if (entry.did != 0) {
+    ss << "Name: " << entry.name << "\n";
+    ss << "Desc: " << entry.description << "\n";
+  }
+  ss << "Size: " << std::dec << (int)data.size() << " bytes\n";
+  ss << "Hex:  ";
+  for (auto b : data) {
+    ss << std::hex << std::setfill('0') << std::setw(2) << (int)b << " ";
+  }
+  return ss.str();
 }
 
 ftxui::Component DidPage::Build() {
   input_did_ = Input(&did_input_, " e.g. F190");
   input_data_ = Input(&data_input_, " hex data (e.g. 01 02)");
 
-  btn_read_ = Button("Read DID", [this] { DoRead(); });
-  btn_write_ = Button("Write DID", [this] { DoWrite(); });
+  btn_read_ = Button("Read", [this] {
+    if (!did_input_.empty()) {
+      try { DoRead((uint16_t)std::stoul(did_input_, nullptr, 16)); }
+      catch (...) { result_text_ = "Invalid DID"; }
+    }
+  });
+
+  btn_write_ = Button("Write", [this] { DoWrite(); });
   btn_search_ = Button("Search", [this] { DoSearch(); });
+
+  // Interactive DID list using Menu
+  MenuOption menu_opt;
+  menu_opt.entries = &did_menu_items_;
+  menu_opt.selected = &selected_did_index_;
+  menu_opt.on_change = [this] {
+    if (selected_did_index_ >= 0 && (size_t)selected_did_index_ < displayed_dids_.size()) {
+      auto& e = displayed_dids_[selected_did_index_];
+      std::stringstream ss;
+      ss << std::hex << e.did;
+      did_input_ = ss.str();
+    }
+  };
+  menu_opt.on_enter = [this] {
+    if (selected_did_index_ >= 0 && (size_t)selected_did_index_ < displayed_dids_.size()) {
+      DoRead(displayed_dids_[selected_did_index_].did);
+    }
+  };
+
+  did_menu_ = Menu(menu_opt);
 
   auto container = Container::Vertical({
       input_did_,
@@ -88,16 +131,21 @@ ftxui::Component DidPage::Build() {
       btn_read_,
       btn_write_,
       input_data_,
+      did_menu_,
   });
 
   renderer_ = Renderer(container, std::function<Element()>([this] {
+    auto& state = app_.GetState();
+    std::lock_guard<std::mutex> lock(state.mtx);
+
+    // If we have a DID read response, show it
+    if (state.last_did_read != 0 && !state.last_did_response.empty()) {
+      result_text_ = FormatResponse(state.last_did_read, state.last_did_response);
+    }
+
     Elements list_items;
-    for (size_t i = 0; i < displayed_dids_.size(); i++) {
-      const auto& e = displayed_dids_[i];
-      std::stringstream ss;
-      ss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << e.did;
-      std::string line = ss.str() + "  " + e.name;
-      auto el = text(line);
+    for (size_t i = 0; i < did_menu_items_.size(); i++) {
+      auto el = text(did_menu_items_[i]);
       if ((int)i == selected_did_index_) el = el | bold | color(Color::Cyan);
       list_items.push_back(el);
     }
@@ -115,7 +163,8 @@ ftxui::Component DidPage::Build() {
                           window(text(" Write Data "),
                                  hbox({text(" Data: ") | bold, input_data_->Render() | flex})),
                       })) | size(WIDTH, EQUAL, 60),
-               window(text(" DID List "), vbox(std::move(list_items)) | vscroll_indicator | yframe | flex),
+               window(text(" DID List (arrows to navigate, Enter to read) "),
+                      vbox(std::move(list_items)) | vscroll_indicator | yframe | flex),
                window(text(" Result "), paragraph(result_text_) | flex),
            }) |
            flex;

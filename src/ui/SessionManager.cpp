@@ -10,17 +10,17 @@ SessionManager::SessionManager(App& app) : app_(app) {}
 
 ftxui::Component SessionManager::Build() {
   btn_default_ = Button("Default (0x01)", [this] {
-    app_.ChangeSession(DiagnosticSession::Default);
+    app_.ChangeSession(0x01);
     status_text_ = "Switching to Default session...";
   });
 
   btn_extended_ = Button("Extended (0x03)", [this] {
-    app_.ChangeSession(DiagnosticSession::Extended);
+    app_.ChangeSession(0x03);
     status_text_ = "Switching to Extended session...";
   });
 
   btn_programming_ = Button("Programming (0x02)", [this] {
-    app_.ChangeSession(DiagnosticSession::Programming);
+    app_.ChangeSession(0x02);
     status_text_ = "Switching to Programming session...";
   });
 
@@ -30,12 +30,12 @@ ftxui::Component SessionManager::Build() {
   });
 
   btn_reset_hard_ = Button("Hard Reset (0x01)", [this] {
-    app_.GetUdsClient()->EcuReset(EcuResetType::HardReset);
+    app_.GetUdsClient()->EcuReset(0x01);
     status_text_ = "Sending Hard Reset...";
   });
 
   btn_reset_soft_ = Button("Soft Reset (0x03)", [this] {
-    app_.GetUdsClient()->EcuReset(EcuResetType::SoftReset);
+    app_.GetUdsClient()->EcuReset(0x03);
     status_text_ = "Sending Soft Reset...";
   });
 
@@ -43,8 +43,7 @@ ftxui::Component SessionManager::Build() {
     auto& state = app_.GetState();
     std::lock_guard<std::mutex> lock(state.mtx);
     std::string text = "Current Session: " + state.session_name + "\n";
-    text += "Routing: " + std::string(state.routing_ok ? "Active" : "Inactive") +
-            "\n";
+    text += "Routing: " + std::string(state.routing_ok ? "Active" : "Inactive") + "\n";
     text += "Status: " + status_text_;
     return paragraph(text) | flex;
   });
@@ -71,9 +70,7 @@ ftxui::Component SessionManager::Build() {
                    separator(),
                    window(text(" Maintenance "),
                           vbox({
-                              hbox({
-                                  btn_tester_present_->Render(),
-                              }),
+                              hbox({btn_tester_present_->Render()}),
                               separator(),
                               hbox({
                                   btn_reset_hard_->Render(),
@@ -82,11 +79,10 @@ ftxui::Component SessionManager::Build() {
                               }),
                           })),
                    separator(),
-                   window(text(" Status "),
-                          status_view_->Render() | flex),
+                   window(text(" Status "), status_view_->Render() | flex),
                }) |
                flex;
-       }));
+      }));
 
   return renderer;
 }

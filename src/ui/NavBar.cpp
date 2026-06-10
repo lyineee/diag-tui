@@ -12,6 +12,7 @@ NavBar::NavBar(App& app) : app_(app) {
       " DID ",
       " Raw Send ",
       " Session ",
+      " Settings ",
   };
 
   MenuOption option;
@@ -28,7 +29,7 @@ ftxui::Component NavBar::Build() {
   auto renderer = Renderer(menu_, std::function<Element()>([this] {
     auto menu_element = menu_->Render();
     return window(text(" Navigation "),
-                  vbox(menu_element) | size(WIDTH, EQUAL, 18));
+                  vbox(menu_element) | size(WIDTH, EQUAL, 20));
   }));
 
   return renderer;
