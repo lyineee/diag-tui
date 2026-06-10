@@ -1,0 +1,34 @@
+# Build
+build/
+cmake-build-*/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CMake
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Dependencies (FetchContent)
+_builds/
+_deps/
+
+# Binaries
+*.o
+*.obj
+*.exe
+*.out
+*.app

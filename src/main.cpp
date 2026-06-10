@@ -1,0 +1,130 @@
+#include "app/App.h"
+#include "ui/StatusBar.h"
+#include "ui/NavBar.h"
+#include "ui/DtcPage.h"
+#include "ui/DidPage.h"
+#include "ui/RawPage.h"
+#include "ui/SessionManager.h"
+#include "uds/DidDatabase.h"
+
+#include <ftxui/dom/elements.hpp>
+#include <ftxui/screen/screen.hpp>
+#include <ftxui/component/component.hpp>
+#include <ftxui/component/component_base.hpp>
+#include <ftxui/component/screen_interactive.hpp>
+#include <ftxui/component/event.hpp>
+#include <spdlog/spdlog.h>
+
+#include <memory>
+#include <string>
+
+using namespace ftxui;
+
+int main() {
+  spdlog::set_level(spdlog::level::debug);
+  spdlog::info("FuseDiag v0.1 starting...");
+
+  App app;
+  app.Init();
+
+  auto screen = ScreenInteractive::Fullscreen();
+
+  StatusBar status_bar(app);
+  NavBar nav_bar(app);
+  DtcPage dtc_page(app);
+  DidPage did_page(app);
+  RawPage raw_page(app);
+  SessionManager session_manager(app);
+
+  auto status_component = status_bar.Build();
+  auto nav_component = nav_bar.Build();
+  auto dtc_component = dtc_page.Build();
+  auto did_component = did_page.Build();
+  auto raw_component = raw_page.Build();
+  auto session_component = session_manager.Build();
+
+  NavPage current_page = NavPage::Dtc;
+
+  app.SetOnResponse([&](const std::string& msg) {
+    spdlog::info("Status: {}", msg);
+  });
+
+  nav_bar.SetOnPageChange([&](NavPage page) {
+    current_page = page;
+  });
+
+  auto main_container = Container::Tab(
+      {
+          dtc_component,
+          did_component,
+          raw_component,
+          session_component,
+      },
+      (int*)&current_page);
+
+  auto layout = Container::Horizontal({
+      nav_component,
+      main_container,
+  });
+
+  auto full_layout = Container::Vertical({
+      status_component,
+      layout,
+  });
+
+  auto renderer = Renderer(full_layout, [&] {
+    auto status_element = status_component->Render();
+    auto body = layout->Render() | flex;
+    return vbox({
+               status_element,
+               separator(),
+               body | flex,
+           }) |
+           flex;
+  });
+
+  renderer |= CatchEvent([&](Event event) {
+    if (event == Event::Escape) {
+      app.Disconnect();
+      screen.Exit();
+      return true;
+    }
+
+    if (event == Event::F5) {
+      if (current_page == NavPage::Dtc) {
+        dtc_page.Refresh();
+      }
+      return true;
+    }
+
+    if (event == Event::F6) {
+      if (current_page == NavPage::Dtc) {
+        app.ClearDtc();
+      }
+      return true;
+    }
+
+    if (event == Event::F2) {
+      current_page = NavPage::Did;
+      return true;
+    }
+
+    if (event == Event::F3) {
+      current_page = NavPage::Raw;
+      return true;
+    }
+
+    if (event == Event::Tab) {
+      int next = ((int)current_page + 1) % (int)NavPage::COUNT_;
+      current_page = (NavPage)next;
+      return true;
+    }
+
+    return false;
+  });
+
+  screen.Loop(renderer);
+
+  spdlog::info("FuseDiag shutting down");
+  return 0;
+}

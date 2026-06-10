@@ -1,0 +1,18 @@
+[
+  {"did": "F180", "name": "VIN", "description": "Vehicle Identification Number", "data_size": 17},
+  {"did": "F190", "name": "ECU Serial Number", "description": "ECU Hardware Serial Number", "data_size": 16},
+  {"did": "F194", "name": "System Supplier ID", "description": "System Supplier Identifier", "data_size": 4},
+  {"did": "F1A0", "name": "ECU Software Version", "description": "ECU Software Version Number", "data_size": 8},
+  {"did": "F1A1", "name": "ECU Hardware Version", "description": "ECU Hardware Version Number", "data_size": 8},
+  {"did": "F1C0", "name": "Active Diagnostic Session", "description": "Current diagnostic session type", "data_size": 1},
+  {"did": "F1C1", "name": "ECU Boot Software Version", "description": "Bootloader version", "data_size": 8},
+  {"did": "F1C2", "name": "ECU Application Data Version", "description": "Application data version", "data_size": 8},
+  {"did": "F1C3", "name": "ECU Programming Date", "description": "Last programming date", "data_size": 4},
+  {"did": "F1C4", "name": "ECU Serial Number 2", "description": "Secondary ECU serial number", "data_size": 16},
+  {"did": "F1C5", "name": "ODX File Version", "description": "ODX diagnostic file version", "data_size": 8},
+  {"did": "F1C6", "name": "ECU Manufacturing Date", "description": "ECU manufacturing date", "data_size": 4},
+  {"did": "D001", "name": "Odometer", "description": "Current vehicle odometer reading", "data_size": 4},
+  {"did": "D002", "name": "Fuel Level", "description": "Current fuel level percentage", "data_size": 1},
+  {"did": "D003", "name": "Engine Speed", "description": "Engine RPM", "data_size": 2},
+  {"did": "D004", "name": "Vehicle Speed", "description": "Current vehicle speed in km/h", "data_size": 1}
+]
