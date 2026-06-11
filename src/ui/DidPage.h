@@ -36,4 +36,6 @@ private:
   std::vector<DidEntry> displayed_dids_;
   std::vector<std::shared_ptr<DidItem>> did_items_;
   int did_selector_{0};
+  int tab_selected_{0};
+  std::vector<std::string> menu_labels_;
 };
