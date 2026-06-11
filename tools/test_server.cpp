@@ -45,6 +45,7 @@ static const std::array<uint8_t, 6> kGid = {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
 
 // Session tracking
 static uint8_t g_current_session = 0x01;  // Default session
+static bool g_dtc_cleared = false;       // DTC clear flag
 
 void handle_signal(int) { g_running = false; }
 
@@ -103,23 +104,87 @@ std::vector<uint8_t> BuildUdsResponse(const std::vector<uint8_t>& request) {
 
     case 0x19: { // ReadDTCInformation
       if (req.pid == 0x02) {
-        // ReadDTCByStatusMask - return 3 sample DTCs
-        // Format: SID+0x40, sub-function, count, then DTC(3) + status(1) per DTC
-        uint8_t dtc_data[] = {
-          0x02, 0x03,                    // sub-function, count
-          0x80, 0x03, 0x01, 0x29,       // P0301, status=testFailed+confirmed+testNotSinceClear
-          0x80, 0x03, 0x00, 0x2B,       // P0300, status=testFailed+confirmed+testNotSinceClear+testFailedThisCycle
-          0x42, 0x01, 0x01, 0x09        // C0101, status=confirmed+testNotSinceClear
+        if (g_dtc_cleared) {
+          std::vector<uint8_t> empty_resp = {0x59, 0x02, 0x00};
+          return empty_resp;
+        }
+        // ReadDTCByStatusMask - return DTCs with dynamic status
+        // each DTC: 3 bytes number + 1 byte status
+        static int dtc_phase = 0;
+        dtc_phase++;
+
+        // Build DTC list with some dynamic status changes
+        struct DtcDef { uint8_t b1, b2, b3; };
+        static const DtcDef dtc_pool[] = {
+          {0x80, 0x03, 0x01},  // P0301 - Cylinder 1 Misfire
+          {0x80, 0x03, 0x00},  // P0300 - Random/Multiple Misfire
+          {0x80, 0x01, 0x01},  // P0101 - MAF Circuit
+          {0x80, 0x42, 0x00},  // P0420 - Catalyst Efficiency
+          {0x80, 0x50, 0x00},  // P0500 - VSS Circuit
+          {0x80, 0x62, 0x0F},  // P062F - EEPROM Error
+          {0x42, 0x01, 0x01},  // C0101 - ABS Lost Comm
+          {0x80, 0x68, 0x05},  // P0685 - ECM Relay
+          {0x80, 0x60, 0x06},  // P0606 - ECM Processor
+          {0x80, 0x56, 0x02},  // P0562 - System Voltage Low
+          {0x42, 0x12, 0x01},  // C0121 - ABS Range/Perf
+          {0x80, 0x44, 0x02},  // P0442 - EVAP Small Leak
+          {0x80, 0x45, 0x05},  // P0455 - EVAP Large Leak
+          {0x42, 0x10, 0x01},  // U0101 - Lost Comm TCM
+          {0x80, 0x21, 0x01},  // P2101 - Throttle Actuator
+          {0x80, 0x50, 0x05},  // P0505 - Idle Control
+          {0x80, 0x11, 0x03},  // P0113 - IAT Circuit High
+          {0x80, 0x11, 0x07},  // P0117 - ECT Circuit Low
+          {0x80, 0x11, 0x08},  // P0118 - ECT Circuit High
         };
-        // 0x59 = 0x19 | 0x40, followed by sub-function echo, then data
-        std::vector<uint8_t> resp = {0x59, 0x02};
-        resp.insert(resp.end(), dtc_data, dtc_data + sizeof(dtc_data));
+        static const int dtc_count = sizeof(dtc_pool) / sizeof(dtc_pool[0]);
+
+        // Status byte builder with dynamic bits
+        auto dtc_status = [dtc_phase](int idx, bool always_active) -> uint8_t {
+          uint8_t s = 0;
+          if (always_active) {
+            s |= 0x01;  // testFailed
+            s |= 0x08;  // confirmed
+            s |= 0x10;  // testNotSinceClear
+          } else {
+            // Intermittent faults: cycle through states
+            int cycle = (dtc_phase + idx * 3) % 12;
+            if (cycle < 6) {
+              s |= 0x01;  // testFailed
+              s |= 0x08;  // confirmed
+            }
+            if (cycle < 3 || (cycle >= 6 && cycle < 9)) {
+              s |= 0x20;  // testFailedThisCycle
+            }
+            if (cycle % 4 == 1 || cycle % 4 == 2) {
+              s |= 0x04;  // pending
+            }
+            s |= 0x10;  // testNotSinceClear
+          }
+          return s;
+        };
+
+        // Build response: [0x59, 0x02, count, DTC_data...]
+        uint8_t count = dtc_count;
+        std::vector<uint8_t> resp;
+        resp.push_back(0x59);
+        resp.push_back(0x02);
+        resp.push_back(count);
+        for (int i = 0; i < dtc_count; i++) {
+          bool always_on = (i < 3);  // first 3 always active
+          resp.push_back(dtc_pool[i].b1);
+          resp.push_back(dtc_pool[i].b2);
+          resp.push_back(dtc_pool[i].b3);
+          resp.push_back(dtc_status(i, always_on));
+        }
+        std::cout << "  ReadDTC: " << dtc_count << " DTCs (phase=" << dtc_phase << ")" << std::endl;
         return resp;
       }
       return UdsMessage::BuildNegativeResponse(sid, NRC_SUB_FUNCTION_NOT_SUPPORTED);
     }
 
     case 0x14: { // ClearDiagnosticInformation
+      g_dtc_cleared = true;
+      std::cout << "  ClearDiagnosticInformation - DTCs cleared" << std::endl;
       return UdsMessage::BuildResponse(sid);
     }
 
@@ -234,7 +299,8 @@ bool HandleDoipMessage(const std::vector<uint8_t>& raw,
     case PayloadType::RoutingActivationRequest: {
       RoutingActivationRequest req;
       if (!req.TryDeserialize(raw, nack)) return false;
-      g_current_session = 0x01;  // Reset session on new connection
+      g_current_session = 0x01;
+      g_dtc_cleared = false;
       RoutingActivationResponse resp(0x02, req.GetSourceAddress(),
                                       kEcuLogicalAddr,
                                       RoutingActivationResponseType::Successful);
@@ -426,8 +492,10 @@ int main() {
   std::cout << "Listening on UDP+TCP port " << kPort << std::endl;
   std::cout << "ECU: VIN=" << kTestVin
             << " LogicalAddr=0x" << std::hex << kEcuLogicalAddr << std::dec << std::endl;
-  std::cout << "Supported DIDs: F190(VIN) F1C0(session) D001(odometer) D003(rpm) D004(speed) F1A0(sw)" << std::endl;
-  std::cout << "Supported DTCs: P0301 P0300 C0101" << std::endl;
+  std::cout << "Supported DIDs: F190(VIN) F1C0(session) D001(odo) D002(fuel) D003(rpm) D004(speed) F1A0(sw)" << std::endl;
+  std::cout << "Supported DTCs: 19 codes (P0301 P0300 P0101 P0420 P0500 P062F C0101 ...)" << std::endl;
+  std::cout << "  First 3 DTCs: always active. Rest: intermittent (dynamic status)" << std::endl;
+  std::cout << "  F5=ReadDTC  F6=ClearDTC  Polling=live graph" << std::endl;
   std::cout << "Press Ctrl+C to stop" << std::endl;
   std::cout << std::endl;
 

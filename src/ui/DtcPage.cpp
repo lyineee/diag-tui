@@ -1,138 +1,183 @@
 #include "ui/DtcPage.h"
+#include "uds/DtcDatabase.h"
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/component_base.hpp>
 #include <ftxui/component/event.hpp>
+#include <ftxui/screen/box.hpp>
 #include <spdlog/spdlog.h>
 
 #include <sstream>
 
 using namespace ftxui;
 
-DtcPage::DtcPage(App& app) : app_(app) {}
-
-ftxui::Component DtcPage::Build() {
-  renderer_ = Renderer(std::function<Element()>([this] {
-    auto& state = app_.GetState();
-    std::lock_guard<std::recursive_mutex> lock(state.mtx);
-
-    Elements dtc_elements;
-    std::string detail_text;
-
-    const auto& data = state.last_dtc_response;
-    int dtc_count = 0;
-
-    if (data.size() >= 4) {
-      size_t offset = 0;
-      if (offset < data.size() && data[offset] == 0x02) offset++;
-      if (offset < data.size()) offset++;
-
-      int dtc_idx = 0;
-      while (offset + 3 <= data.size()) {
-        uint32_t code = ((uint32_t)data[offset] << 16) |
-                        ((uint32_t)data[offset + 1] << 8) | data[offset + 2];
-        uint8_t status = (offset + 3 < data.size()) ? data[offset + 3] : 0;
-
-        uint8_t first_byte = (code >> 16) & 0xFF;
-        uint16_t rest = code & 0xFFFF;
-
-        std::string code_str;
-        switch (first_byte >> 4) {
-          case 0: code_str = "P"; break;
-          case 1: code_str = "C"; break;
-          case 2: code_str = "B"; break;
-          case 3: code_str = "U"; break;
-          default: code_str = "X"; break;
-        }
-        char buf[8];
-        snprintf(buf, sizeof(buf), "%04X", rest);
-        code_str += buf;
-
-        std::string status_str;
-        if (status & 0x01) status_str += "testFailed ";
-        if (status & 0x02) status_str += "testThisCycle ";
-        if (status & 0x04) status_str += "pending ";
-        if (status & 0x08) status_str += "confirmed ";
-        if (status & 0x10) status_str += "testNotSinceClear ";
-        if (status & 0x20) status_str += "testFailedThisCycle ";
-        if (status & 0x40) status_str += "warning ";
-        if (status_str.empty()) status_str = "none";
-
-        std::string line = code_str + "  [" + status_str + "]";
-        auto el = text(line);
-        if (dtc_idx == selected_index_) el = el | bold | color(Color::Cyan) | bgcolor(Color::GrayDark);
-        dtc_elements.push_back(el);
-
-        if (dtc_idx == selected_index_) {
-          char code_str2[16];
-          snprintf(code_str2, sizeof(code_str2), "%c%04X",
-                   "PCBU"[(first_byte >> 4) & 3], rest);
-          detail_text += "DTC:       " + std::string(code_str2) + "\n";
-          detail_text += "Raw:       0x" + std::to_string(code) + "\n";
-          detail_text += "Status:    0x" + std::to_string(status) + "\n";
-          detail_text += "  TestFailed:          " + std::string(status & 0x01 ? "Yes" : "No") + "\n";
-          detail_text += "  TestThisCycle:       " + std::string(status & 0x02 ? "Yes" : "No") + "\n";
-          detail_text += "  Pending:             " + std::string(status & 0x04 ? "Yes" : "No") + "\n";
-          detail_text += "  Confirmed:           " + std::string(status & 0x08 ? "Yes" : "No") + "\n";
-          detail_text += "  TestNotSinceClear:   " + std::string(status & 0x10 ? "Yes" : "No") + "\n";
-          detail_text += "  TestFailedThisCycle: " + std::string(status & 0x20 ? "Yes" : "No") + "\n";
-          detail_text += "  WarningIndicator:    " + std::string(status & 0x40 ? "Yes" : "No") + "\n";
-        }
-
-        dtc_idx++;
-        dtc_count = dtc_idx;
-        offset += (offset + 4 <= data.size()) ? 4 : 3;
-      }
-    }
-
-    if (selected_index_ >= dtc_count) selected_index_ = dtc_count > 0 ? dtc_count - 1 : 0;
-
-    if (dtc_elements.empty()) {
-      dtc_elements.push_back(text(" No DTCs found "));
-    }
-
-    auto dtc_list_element = window(text(" DTC List (F5: Refresh, F6: Clear, \u2191\u2193: Select) "),
-                                    vbox(std::move(dtc_elements)) | vscroll_indicator | yframe) |
-                            size(WIDTH, EQUAL, 50) | flex;
-
-    if (detail_text.empty()) {
-      detail_text = " Select a DTC to view details ";
-    }
-
-    auto detail_element =
-        window(text(" DTC Detail "), paragraph(detail_text)) | flex;
-
-    return hbox({dtc_list_element, separator(), detail_element}) | flex;
-  }));
-
-  // Wrap in CatchEvent to handle arrow key navigation between DTCs
-  return renderer_ | CatchEvent([this](Event event) {
-    auto& state = app_.GetState();
-    std::lock_guard<std::recursive_mutex> lock(state.mtx);
-    size_t dtc_count = 0;
-    const auto& data = state.last_dtc_response;
-    if (data.size() >= 4) {
-      size_t offset = 0;
-      if (offset < data.size() && data[offset] == 0x02) offset++;
-      if (offset < data.size()) offset++;
-      while (offset + 3 <= data.size()) {
-        dtc_count++;
-        offset += (offset + 4 <= data.size()) ? 4 : 3;
-      }
-    }
-
-    if (event == Event::ArrowUp || event == Event::Character('k')) {
-      if (selected_index_ > 0) selected_index_--;
-      return true;
-    }
-    if (event == Event::ArrowDown || event == Event::Character('j')) {
-      if (selected_index_ + 1 < (int)dtc_count) selected_index_++;
-      return true;
-    }
-    return false;
-  });
+DtcPage::DtcPage(App& app) : app_(app) {
+  DtcDatabase::Instance().Load("config/dtc_database.json");
 }
 
-void DtcPage::Refresh() {
-  app_.ReadDtc();
+void DtcPage::Refresh() { app_.ReadDtc(); }
+
+static std::string DtcCodeStr(uint32_t code) {
+  uint8_t fb = (code >> 16) & 0xFF;
+  uint16_t rest = code & 0xFFFF;
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%c%04X", "PCBU"[(fb >> 4) & 3], rest);
+  return std::string(buf);
+}
+
+ftxui::Component DtcPage::Build() {
+  class Impl : public ComponentBase {
+  public:
+    Impl(App& app, int* selected) : app_(app), selected_(selected) {}
+
+    Element Render() override {
+      auto& state = app_.GetState();
+      std::lock_guard<std::recursive_mutex> lock(state.mtx);
+
+      const auto& data = state.last_dtc_response;
+      int dtc_count = 0;
+
+      // ── left panel: DTC list ──────────────────────────────────
+      Elements dtc_els;
+
+      if (data.size() >= 4) {
+        size_t offset = 0;
+        if (offset < data.size() && data[offset] == 0x02) offset++;
+        if (offset < data.size()) offset++;
+
+        int idx = 0;
+        while (offset + 3 <= data.size()) {
+          uint32_t code = ((uint32_t)data[offset] << 16) |
+                          ((uint32_t)data[offset + 1] << 8) | data[offset + 2];
+          uint8_t st = (offset + 3 < data.size()) ? data[offset + 3] : 0;
+
+          auto code_str = DtcCodeStr(code);
+          auto entry = DtcDatabase::Instance().Find(code_str);
+          std::string dtc_name = entry.code.empty() ? "" : entry.name;
+
+          auto dot = text(idx == *selected_ ? " ▸ " : "   ");
+          auto line = text(code_str) | bold;
+          Elements dots;
+          auto mk = [&](uint8_t mask, Color c) {
+            dots.push_back(text(st & mask ? "●" : "○") | color(c));
+          };
+          mk(0x01, Color::RedLight);
+          mk(0x08, Color::YellowLight);
+          mk(0x04, Color::Orange1);
+          mk(0x20, Color::Cyan);
+
+          auto name_el = text(" " + dtc_name) | dim;
+          if (dtc_name.empty()) name_el = text("") | size(WIDTH, EQUAL, 0);
+
+          auto row = hbox({dot, line, separator(), hbox(std::move(dots)),
+                           separator(), name_el | flex});
+          if (idx == *selected_) row = row | inverted;
+          dtc_els.push_back(row);
+
+          idx++;
+          dtc_count = idx;
+          offset += (offset + 4 <= data.size()) ? 4 : 3;
+        }
+      }
+
+      if (*selected_ >= dtc_count) *selected_ = dtc_count > 0 ? dtc_count - 1 : 0;
+
+      if (dtc_els.empty())
+        dtc_els.push_back(text(" No DTCs found "));
+
+      auto list_el = window(
+          text(" DTC List (F5:Refresh F6:Clear \u2191\u2193:Select) "),
+          vbox(std::move(dtc_els)) | vscroll_indicator | yframe) | flex;
+
+      // ── right panel: DTC detail + legend ──────────────────────
+      Element detail_el;
+      if (*selected_ >= 0 && *selected_ < dtc_count && data.size() >= 4) {
+        size_t offset = 0;
+        if (offset < data.size() && data[offset] == 0x02) offset++;
+        if (offset < data.size()) offset++;
+        int idx = 0;
+        uint32_t code = 0;
+        uint8_t status = 0;
+        while (offset + 3 <= data.size() && idx <= *selected_) {
+          code = ((uint32_t)data[offset] << 16) |
+                 ((uint32_t)data[offset + 1] << 8) | data[offset + 2];
+          status = (offset + 3 < data.size()) ? data[offset + 3] : 0;
+          idx++;
+          offset += (offset + 4 <= data.size()) ? 4 : 3;
+        }
+
+        auto code_str = DtcCodeStr(code);
+        auto entry = DtcDatabase::Instance().Find(code_str);
+
+        Elements rows;
+        rows.push_back(hbox({
+            text(" DTC ") | bold,
+            text(" " + code_str + " ") | color(Color::Cyan) | bold,
+        }));
+        if (!entry.name.empty())
+          rows.push_back(hbox({text(" Name: ") | bold, text(entry.name) | dim}));
+        if (!entry.description.empty())
+          rows.push_back(hbox({text(" Desc: ") | bold, paragraph(" " + entry.description) | dim | size(WIDTH, EQUAL, 28)}));
+        rows.push_back(separator());
+
+        auto stat_row = [&](const char* label, uint8_t mask, Color on_color) {
+          auto val = text(status & mask ? " Yes " : " No ");
+          if (status & mask) val = val | color(on_color) | bold;
+          return hbox({text("  ") | dim, text(label) | bold,
+                       separator() | flex, val});
+        };
+        rows.push_back(stat_row("TestFailed",          0x01, Color::RedLight));
+        rows.push_back(stat_row("TestFailedThisCycle", 0x20, Color::Red));
+        rows.push_back(stat_row("TestThisCycle",       0x02, Color::Cyan));
+        rows.push_back(stat_row("Pending",             0x04, Color::Orange1));
+        rows.push_back(stat_row("Confirmed",           0x08, Color::YellowLight));
+        rows.push_back(stat_row("TestNotSinceClear",   0x10, Color::GrayDark));
+        rows.push_back(stat_row("WarningIndicator",    0x40, Color::Yellow));
+        rows.push_back(separator());
+        rows.push_back(hbox({text(" Raw:  0x"), text(std::to_string(code)) | dim}));
+        rows.push_back(hbox({text(" Byte: 0x"), text(std::to_string(status)) | dim}));
+        rows.push_back(separator());
+        rows.push_back(text(" Legend ") | bold);
+        rows.push_back(hbox({text("  ") | dim, text("●") | color(Color::RedLight),    text(" TestFailed")}));
+        rows.push_back(hbox({text("  ") | dim, text("●") | color(Color::YellowLight), text(" Confirmed")}));
+        rows.push_back(hbox({text("  ") | dim, text("●") | color(Color::Orange1),     text(" Pending")}));
+        rows.push_back(hbox({text("  ") | dim, text("●") | color(Color::Cyan),        text(" ThisCycle")}));
+
+        detail_el = window(text(" DTC Detail "), vbox(std::move(rows))) | size(WIDTH, EQUAL, 36);
+      } else {
+        detail_el = window(text(" DTC Detail "),
+                           text(" Select a DTC from the list ")) | size(WIDTH, EQUAL, 36);
+      }
+
+      return hbox({list_el | flex,
+                   separator(),
+                   detail_el}) | flex | reflect(box_);
+    }
+
+    bool Focusable() const override { return true; }
+
+    bool OnEvent(Event event) override {
+      auto& state = app_.GetState();
+      std::lock_guard<std::recursive_mutex> lock(state.mtx);
+      const auto& data = state.last_dtc_response;
+      int count = 0;
+      if (data.size() >= 4) {
+        size_t o = 0;
+        if (o < data.size() && data[o] == 0x02) o++;
+        if (o < data.size()) o++;
+        while (o + 3 <= data.size()) { count++; o += (o + 4 <= data.size()) ? 4 : 3; }
+      }
+      if (event == Event::ArrowUp && *selected_ > 0) { (*selected_)--; return true; }
+      if (event == Event::ArrowDown && *selected_ + 1 < count) { (*selected_)++; return true; }
+      return false;
+    }
+
+  private:
+    App& app_;
+    int* selected_;
+    Box box_;
+  };
+
+  renderer_ = Make<Impl>(app_, &selected_index_);
+  return renderer_;
 }

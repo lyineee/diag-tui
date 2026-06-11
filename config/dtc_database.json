@@ -21,6 +21,8 @@
   {"dtc": "P062F", "name": "EEPROM Error", "description": "Internal control module EEPROM error"},
   {"dtc": "P0685", "name": "ECM Relay Circuit", "description": "ECM/PCM power relay control circuit open"},
   {"dtc": "P0700", "name": "TCM Requested MIL", "description": "Transmission Control System malfunction"},
+  {"dtc": "P8003", "name": "TCM Requested MIL", "description": "Transmission Control System malfunction"},
+  {"dtc": "B8003", "name": "MAF Circuit Range/Performance", "description": "Mass Air Flow Sensor circuit range or performance problem"},
   {"dtc": "P1234", "name": "Fuel Pump Circuit", "description": "Fuel pump control circuit malfunction"},
   {"dtc": "P2101", "name": "Throttle Actuator", "description": "Throttle actuator control motor circuit range/performance"},
   {"dtc": "P2119", "name": "Throttle Close Position", "description": "Throttle actuator closed position performance"},
