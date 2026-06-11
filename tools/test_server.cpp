@@ -48,6 +48,41 @@ static uint8_t g_current_session = 0x01;  // Default session
 
 void handle_signal(int) { g_running = false; }
 
+// ── Dynamic DID helpers ──────────────────────────────────────────────
+
+struct DynamicDidState {
+  int64_t odometer = 12345;       // starts at 12345 km
+  int fuel_level = 85;            // 85%
+  int engine_rpm = 3000;          // 3000 RPM base
+  int vehicle_speed = 80;         // 80 km/h base
+  int phase = 0;                  // oscillation counter
+};
+
+static DynamicDidState& GetDidState() {
+  static DynamicDidState s;
+  return s;
+}
+
+static void UpdateDynamicDids() {
+  auto& st = GetDidState();
+  st.phase++;
+
+  // Odometer: slowly increase (0.01 km per read)
+  st.odometer += 1;
+
+  // Fuel level: slowly decrease, bounce when near empty
+  st.fuel_level -= (st.fuel_level > 5) ? 1 : -10;
+
+  // Engine RPM: fluctuate between 2000-4000 using triangular wave
+  int cycle = st.phase % 20;
+  st.engine_rpm = 2000 + (cycle < 10 ? cycle * 200 : (20 - cycle) * 200);
+
+  // Vehicle speed: fluctuate 0-120
+  int speed_cycle = st.phase % 30;
+  st.vehicle_speed = speed_cycle * 4;
+  if (st.vehicle_speed > 120) st.vehicle_speed = 240 - st.vehicle_speed;
+}
+
 // ── UDS Response Builder (uses uds-c types) ─────────────────────────
 
 std::vector<uint8_t> BuildUdsResponse(const std::vector<uint8_t>& request) {
@@ -105,21 +140,29 @@ std::vector<uint8_t> BuildUdsResponse(const std::vector<uint8_t>& request) {
           break;
         }
         case 0xD001: { // Odometer
-          uint32_t val = 12345;
+          UpdateDynamicDids();
+          uint32_t val = (uint32_t)GetDidState().odometer;
           data.push_back((val >> 24) & 0xFF);
           data.push_back((val >> 16) & 0xFF);
           data.push_back((val >> 8) & 0xFF);
           data.push_back(val & 0xFF);
           break;
         }
+        case 0xD002: { // Fuel level
+          UpdateDynamicDids();
+          data.push_back((uint8_t)GetDidState().fuel_level);
+          break;
+        }
         case 0xD003: { // Engine speed
-          uint16_t rpm = 3000;
+          UpdateDynamicDids();
+          uint16_t rpm = (uint16_t)GetDidState().engine_rpm;
           data.push_back((rpm >> 8) & 0xFF);
           data.push_back(rpm & 0xFF);
           break;
         }
         case 0xD004: { // Vehicle speed
-          data.push_back(80);  // 80 km/h
+          UpdateDynamicDids();
+          data.push_back((uint8_t)GetDidState().vehicle_speed);
           break;
         }
         case 0xF1A0: { // ECU software version

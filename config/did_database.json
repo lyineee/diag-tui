@@ -11,8 +11,8 @@
   {"did": "F1C4", "name": "ECU Serial Number 2", "description": "Secondary ECU serial number", "data_size": 16},
   {"did": "F1C5", "name": "ODX File Version", "description": "ODX diagnostic file version", "data_size": 8},
   {"did": "F1C6", "name": "ECU Manufacturing Date", "description": "ECU manufacturing date", "data_size": 4},
-  {"did": "D001", "name": "Odometer", "description": "Current vehicle odometer reading", "data_size": 4},
-  {"did": "D002", "name": "Fuel Level", "description": "Current fuel level percentage", "data_size": 1},
-  {"did": "D003", "name": "Engine Speed", "description": "Engine RPM", "data_size": 2},
-  {"did": "D004", "name": "Vehicle Speed", "description": "Current vehicle speed in km/h", "data_size": 1}
+  {"did": "D001", "name": "Odometer", "description": "Current vehicle odometer reading", "data_size": 4, "graphable": true},
+  {"did": "D002", "name": "Fuel Level", "description": "Current fuel level percentage", "data_size": 1, "graphable": true},
+  {"did": "D003", "name": "Engine Speed", "description": "Engine RPM", "data_size": 2, "graphable": true},
+  {"did": "D004", "name": "Vehicle Speed", "description": "Current vehicle speed in km/h", "data_size": 1, "graphable": true}
 ]

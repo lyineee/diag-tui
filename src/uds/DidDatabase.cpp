@@ -31,6 +31,7 @@ bool DidDatabase::LoadFromJson(const std::string& json_str) {
       entry.name = item.value("name", "");
       entry.description = item.value("description", "");
       entry.data_size = item.value("data_size", 0);
+      entry.graphable = item.value("graphable", false);
       entries_.push_back(entry);
     }
 

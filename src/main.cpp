@@ -33,6 +33,7 @@ int main() {
   app.Init();
 
   auto screen = ScreenInteractive::Fullscreen();
+  app.SetScreen(&screen);
 
   StatusBar status_bar(app);
   NavBar nav_bar(app);

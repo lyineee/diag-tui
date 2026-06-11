@@ -11,11 +11,9 @@ public:
   ftxui::Component Build();
 
 private:
-  ftxui::Component BuildContent();
-
   App& app_;
   DidEntry entry_;
   bool* expanded_;
   std::string label_;
-  ftxui::Component content_;
+  bool graph_checkbox_{false};
 };

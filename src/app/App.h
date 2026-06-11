@@ -11,6 +11,8 @@
 #include <thread>
 #include <vector>
 
+namespace ftxui { class ScreenInteractive; }
+
 enum class NavPage { Dtc, Did, Raw, Session, Settings, COUNT_ };
 
 struct DidValue {
@@ -42,6 +44,7 @@ struct AppState {
   // DID values and history
   std::map<uint16_t, DidValue> did_values;
   std::map<uint16_t, std::vector<int>> did_history;
+  std::map<uint16_t, bool> graph_enabled;
 
   // Polling
   bool polling_active{false};
@@ -70,6 +73,7 @@ public:
 
   void SetSourceAddress(uint16_t addr);
   void SetTargetAddress(uint16_t addr);
+  void SetScreen(ftxui::ScreenInteractive* s);
 
   void StartPolling(const std::vector<uint16_t>& dids, int interval_s);
   void StopPolling();
@@ -91,4 +95,5 @@ private:
   AppState state_;
   std::thread polling_thread_;
   std::atomic<bool> polling_stop_{false};
+  ftxui::ScreenInteractive* screen_{nullptr};
 };

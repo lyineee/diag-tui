@@ -1,4 +1,6 @@
 #include "app/App.h"
+#include <ftxui/component/screen_interactive.hpp>
+#include <ftxui/component/event.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -90,40 +92,52 @@ void App::OnUdsResponse(const DiagnosticResponse& resp) {
 
   state_.last_raw_response.assign(resp.payload, resp.payload + resp.payload_length);
 
+  bool did_updated = false;
+
   if (resp.success) {
     if (resp.mode == 0x19) {
       state_.status_message = "Read " + std::to_string(resp.payload_length) + " DTC bytes";
       state_.last_dtc_response.assign(resp.payload, resp.payload + resp.payload_length);
     } else if (resp.mode == 0x22) {
+      did_updated = true;
       state_.status_message = "DID read successful";
-      state_.last_did_response.assign(resp.payload, resp.payload + resp.payload_length);
-      if (state_.last_did_read != 0) {
-        DidValue val;
-        val.raw.assign(resp.payload, resp.payload + resp.payload_length);
 
-        // Try to parse as numeric (up to 8 bytes as big-endian)
-        val.is_numeric = (resp.payload_length > 0 && resp.payload_length <= 8);
+      // 0x22 response format: [DID_high, DID_low, data...]
+      // Parse DID directly from response (avoids race on last_did_read)
+      if (resp.payload_length >= 2) {
+        uint16_t did = ((uint16_t)resp.payload[0] << 8) | resp.payload[1];
+        uint8_t data_len = resp.payload_length - 2;
+        const uint8_t* data_start = resp.payload + 2;
+
+        state_.last_did_read = did;
+        state_.last_did_response.assign(data_start, data_start + data_len);
+
+        DidValue val;
+        val.raw.assign(data_start, data_start + data_len);
+
+        // Numeric parse on data bytes only (skip DID)
+        val.is_numeric = (data_len > 0 && data_len <= 8);
         if (val.is_numeric) {
           val.numeric_value = 0;
-          for (uint8_t i = 0; i < resp.payload_length; i++) {
-            val.numeric_value = (val.numeric_value << 8) | resp.payload[i];
+          for (uint8_t i = 0; i < data_len; i++) {
+            val.numeric_value = (val.numeric_value << 8) | data_start[i];
           }
         }
 
-        // Build display string
+        // Build display string from raw data
         std::stringstream ss;
         ss << std::hex << std::uppercase << std::setfill('0');
-        for (uint8_t i = 0; i < resp.payload_length; i++) {
-          ss << std::setw(2) << (int)resp.payload[i] << " ";
-          if ((i + 1) % 16 == 0 && i + 1 < resp.payload_length) ss << "\n";
+        for (uint8_t i = 0; i < data_len; i++) {
+          ss << std::setw(2) << (int)data_start[i] << " ";
+          if ((i + 1) % 16 == 0 && i + 1 < data_len) ss << "\n";
         }
         val.display = ss.str();
 
-        state_.did_values[state_.last_did_read] = val;
+        state_.did_values[did] = val;
 
-        // Update history for numeric values (max 120 points)
+        // History for numeric values
         if (val.is_numeric) {
-          auto& hist = state_.did_history[state_.last_did_read];
+          auto& hist = state_.did_history[did];
           hist.push_back((int)val.numeric_value);
           if (hist.size() > 120) {
             hist.erase(hist.begin());
@@ -146,6 +160,11 @@ void App::OnUdsResponse(const DiagnosticResponse& resp) {
        << ": " << UdsMessage::NrcToString(resp.negative_response_code);
     state_.status_message = ss.str();
     state_.raw_response_text = ss.str();
+  }
+
+  // Wake ftxui event loop so UI re-renders after background data update
+  if (did_updated && screen_) {
+    screen_->PostEvent(ftxui::Event::Custom);
   }
 
   if (resp.payload_length > 0) {
@@ -248,6 +267,8 @@ void App::PollingThread() {
     }
   }
 }
+
+void App::SetScreen(ftxui::ScreenInteractive* s) { screen_ = s; }
 
 std::shared_ptr<DoipClient> App::GetDoipClient() const { return doip_; }
 std::shared_ptr<UdsClient> App::GetUdsClient() const { return uds_; }
