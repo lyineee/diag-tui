@@ -14,36 +14,64 @@ endif()
 include(FetchContent)
 
 # ── Dependencies ──────────────────────────────────────────────────
+# Try find_package first; fall back to FetchContent if not found.
 
-FetchContent_Declare(
-  ftxui
-  GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI.git
-  GIT_TAG v5.0.0
+macro(fetch_or_find name)
+  cmake_parse_arguments(_ARG "" "TAG;TARGET" "REPO;COMPONENTS" ${ARGN})
+  if(NOT _ARG_TARGET)
+    set(_ARG_TARGET "${name}")
+  endif()
+  if(TARGET ${_ARG_TARGET})
+    return()
+  endif()
+  find_package(${name} QUIET)
+  if(TARGET ${_ARG_TARGET})
+    return()
+  endif()
+  FetchContent_Declare(
+    ${name}
+    GIT_REPOSITORY ${_ARG_REPO}
+    GIT_TAG ${_ARG_TAG}
+  )
+  FetchContent_MakeAvailable(${name})
+  if(NOT TARGET ${_ARG_TARGET})
+    message(FATAL_ERROR "FetchContent for ${name} did not provide target ${_ARG_TARGET}")
+  endif()
+endmacro()
+
+fetch_or_find(ftxui
+  REPO https://github.com/ArthurSonzogni/FTXUI.git
+  TAG v5.0.0
+  TARGET ftxui::screen
 )
-FetchContent_MakeAvailable(ftxui)
 
-FetchContent_Declare(
-  doip-lib
-  GIT_REPOSITORY https://github.com/langroodi/DoIP-Lib.git
-  GIT_TAG master
+fetch_or_find(doip-lib
+  REPO https://github.com/langroodi/DoIP-Lib.git
+  TAG master
+  TARGET doip_lib
 )
-FetchContent_MakeAvailable(doip-lib)
 
-FetchContent_Declare(
-  nlohmann_json
-  GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG v3.11.3
+fetch_or_find(nlohmann_json
+  REPO https://github.com/nlohmann/json.git
+  TAG v3.11.3
+  TARGET nlohmann_json::nlohmann_json
 )
-FetchContent_MakeAvailable(nlohmann_json)
 
-FetchContent_Declare(
-  spdlog
-  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.13.0
+fetch_or_find(spdlog
+  REPO https://github.com/gabime/spdlog.git
+  TAG v1.13.0
+  TARGET spdlog::spdlog
 )
-FetchContent_MakeAvailable(spdlog)
 
-# uds-c - C UDS library with ISO-TP transport (used for types + response parsing)
+if(BUILD_TESTING)
+  fetch_or_find(GTest
+    REPO https://github.com/google/googletest.git
+    TAG v1.14.0
+    TARGET GTest::gtest
+  )
+endif()
+
+# uds-c / isotp-c / bitfield-c (not commonly installed system-wide, always fetch)
 FetchContent_Declare(
   uds-c
   GIT_REPOSITORY https://github.com/openxc/uds-c.git
@@ -96,15 +124,6 @@ set(UDS_C_SOURCES
 add_library(uds-c STATIC ${UDS_C_SOURCES})
 target_include_directories(uds-c PUBLIC ${UDS_C_INCLUDE})
 set_target_properties(uds-c PROPERTIES LINKER_LANGUAGE C)
-
-if(BUILD_TESTING)
-  FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.14.0
-  )
-  FetchContent_MakeAvailable(googletest)
-endif()
 
 find_package(Threads REQUIRED)
 
