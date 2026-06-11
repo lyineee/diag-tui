@@ -93,7 +93,7 @@ private:
   void OnDiagnosticMessage(const DoipMessage& msg);
   void OnDiscovery(const std::vector<EcuInfo>& ecus);
   void OnConnectResult(bool success, const std::string& msg);
-  void OnUdsResponse(const DiagnosticResponse& resp);
+  void OnUdsResponse(const DiagResponse& resp);
 
   std::shared_ptr<DoipClient> doip_;
   std::shared_ptr<UdsClient> uds_;

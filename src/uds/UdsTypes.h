@@ -1,5 +1,6 @@
 #pragma once
 
+#include <uds/uds_types.h>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -37,6 +38,16 @@ struct UdsResponse {
   uint8_t nrc{0};
   std::vector<uint8_t> data;
   std::string error_message;
+};
+
+// Custom response type replacing uds-c's DiagnosticResponse (which has
+// fixed 11-byte payload). Uses std::vector for unlimited payload length.
+struct DiagResponse {
+  bool success{false};
+  bool completed{true};
+  uint8_t mode{0};
+  DiagnosticNegativeResponseCode nrc{NRC_SUCCESS};
+  std::vector<uint8_t> payload;
 };
 
 struct DidEntry {

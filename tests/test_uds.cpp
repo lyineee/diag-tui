@@ -37,7 +37,7 @@ TEST(UdsMessageTest, ParsePositiveResponse) {
   auto resp = UdsMessage::ParseResponse(raw);
   EXPECT_TRUE(resp.success);
   EXPECT_EQ(resp.mode, 0x10);
-  ASSERT_EQ(resp.payload_length, 1);
+  ASSERT_EQ(resp.payload.size(), 1);
   EXPECT_EQ(resp.payload[0], 0x03);
 }
 
@@ -46,7 +46,7 @@ TEST(UdsMessageTest, ParseNegativeResponse) {
   auto resp = UdsMessage::ParseResponse(raw);
   EXPECT_FALSE(resp.success);
   EXPECT_EQ(resp.mode, 0x22);
-  EXPECT_EQ(resp.negative_response_code, NRC_REQUEST_OUT_OF_RANGE);
+  EXPECT_EQ(resp.nrc, NRC_REQUEST_OUT_OF_RANGE);
 }
 
 TEST(UdsMessageTest, ParseEmptyResponse) {

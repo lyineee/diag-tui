@@ -123,6 +123,7 @@ set(SOURCES
   src/ui/DidItem.cpp
   src/uds/UdsClient.cpp
   src/uds/DidDatabase.cpp
+  src/uds/DtcDatabase.cpp
   src/uds/UdsMessage.cpp
   src/doip/DoipClient.cpp
 )

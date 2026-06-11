@@ -15,7 +15,7 @@ App::App()
 App::~App() { StopPolling(); Disconnect(); }
 
 void App::Init() {
-  uds_->SetDefaultCallback([this](const DiagnosticResponse& resp) {
+  uds_->SetDefaultCallback([this](const DiagResponse& resp) {
     OnUdsResponse(resp);
   });
 
@@ -83,31 +83,29 @@ void App::OnDiscovery(const std::vector<EcuInfo>& ecus) {
 }
 
 void App::OnDiagnosticMessage(const DoipMessage& msg) {
-  DiagnosticResponse resp = UdsMessage::ParseResponse(msg.payload);
+  DiagResponse resp = UdsMessage::ParseResponse(msg.payload);
   OnUdsResponse(resp);
 }
 
-void App::OnUdsResponse(const DiagnosticResponse& resp) {
+void App::OnUdsResponse(const DiagResponse& resp) {
   std::lock_guard<std::recursive_mutex> lock(state_.mtx);
 
-  state_.last_raw_response.assign(resp.payload, resp.payload + resp.payload_length);
+  state_.last_raw_response = resp.payload;
 
   bool did_updated = false;
 
   if (resp.success) {
     if (resp.mode == 0x19) {
-      state_.status_message = "Read " + std::to_string(resp.payload_length) + " DTC bytes";
-      state_.last_dtc_response.assign(resp.payload, resp.payload + resp.payload_length);
+      state_.status_message = "Read DTC response (" + std::to_string(resp.payload.size()) + " bytes)";
+      state_.last_dtc_response = resp.payload;
     } else if (resp.mode == 0x22) {
       did_updated = true;
       state_.status_message = "DID read successful";
 
-      // 0x22 response format: [DID_high, DID_low, data...]
-      // Parse DID directly from response (avoids race on last_did_read)
-      if (resp.payload_length >= 2) {
+      if (resp.payload.size() >= 2) {
         uint16_t did = ((uint16_t)resp.payload[0] << 8) | resp.payload[1];
-        uint8_t data_len = resp.payload_length - 2;
-        const uint8_t* data_start = resp.payload + 2;
+        uint8_t data_len = (uint8_t)(resp.payload.size() - 2);
+        const uint8_t* data_start = resp.payload.data() + 2;
 
         state_.last_did_read = did;
         state_.last_did_response.assign(data_start, data_start + data_len);
@@ -161,21 +159,20 @@ void App::OnUdsResponse(const DiagnosticResponse& resp) {
     }
   } else {
     std::stringstream ss;
-    ss << "NRC 0x" << std::hex << (int)resp.negative_response_code
-       << ": " << UdsMessage::NrcToString(resp.negative_response_code);
+    ss << "NRC 0x" << std::hex << (int)resp.nrc
+       << ": " << UdsMessage::NrcToString(resp.nrc);
     state_.status_message = ss.str();
     state_.raw_response_text = ss.str();
   }
 
-  // Wake ftxui event loop so UI re-renders after background data update
   if (did_updated && screen_) {
     screen_->PostEvent(ftxui::Event::Custom);
   }
 
-  if (resp.payload_length > 0) {
+  if (!resp.payload.empty()) {
     std::stringstream hex;
     hex << std::hex;
-    for (uint8_t i = 0; i < resp.payload_length; i++) {
+    for (size_t i = 0; i < resp.payload.size(); i++) {
       hex << std::setfill('0') << std::setw(2) << (int)resp.payload[i] << " ";
       if ((i + 1) % 16 == 0) hex << "\n";
     }

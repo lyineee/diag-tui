@@ -4,7 +4,7 @@
 
 UdsClient::UdsClient(std::shared_ptr<DoipClient> doip) : doip_(std::move(doip)) {
   doip_->SetDiagnosticCallback([this](const DoipMessage& msg) {
-    DiagnosticResponse resp = UdsMessage::ParseResponse(msg.payload);
+    DiagResponse resp = UdsMessage::ParseResponse(msg.payload);
     if (default_cb_) {
       default_cb_(resp);
     }
@@ -14,7 +14,7 @@ UdsClient::UdsClient(std::shared_ptr<DoipClient> doip) : doip_(std::move(doip)) 
 void UdsClient::DiagnosticSessionControl(uint8_t session,
                                           UdsResponseCallback cb) {
   auto req = UdsMessage::MakeRequest(0x10, session, true, 1);
-  SendRequest(req, [this, session, cb](const DiagnosticResponse& resp) {
+  SendRequest(req, [this, session, cb](const DiagResponse& resp) {
     if (resp.success) {
       current_session_ = session;
       spdlog::info("Session changed to 0x{:02X}", session);
@@ -80,12 +80,6 @@ void UdsClient::SendRequest(const DiagnosticRequest& req,
   auto bytes = UdsMessage::BuildRequest(req);
   spdlog::debug("UDS Request ({} bytes)", bytes.size());
   if (!doip_->SendDiagnostic(bytes)) {
-    if (cb) {
-      DiagnosticResponse resp;
-      std::memset(&resp, 0, sizeof(resp));
-      resp.completed = true;
-      resp.success = false;
-      cb(resp);
-    }
+    if (cb) cb(DiagResponse{});
   }
 }

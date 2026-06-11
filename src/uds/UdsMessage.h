@@ -1,5 +1,6 @@
 #pragma once
 
+#include "uds/UdsTypes.h"
 #include <uds/uds_types.h>
 #include <string>
 #include <vector>
@@ -11,7 +12,7 @@ struct UdsMessage {
                                              uint8_t data_len = 0);
   static std::vector<uint8_t> BuildNegativeResponse(uint8_t sid,
                                                      DiagnosticNegativeResponseCode nrc);
-  static DiagnosticResponse ParseResponse(const std::vector<uint8_t>& raw);
+  static DiagResponse ParseResponse(const std::vector<uint8_t>& raw);
   static DiagnosticRequest ParseRequest(const std::vector<uint8_t>& raw);
   static std::string NrcToString(DiagnosticNegativeResponseCode nrc);
 

@@ -9,7 +9,7 @@ class DoipClient;
 
 class UdsClient {
 public:
-  using UdsResponseCallback = std::function<void(const DiagnosticResponse&)>;
+  using UdsResponseCallback = std::function<void(const DiagResponse&)>;
 
   explicit UdsClient(std::shared_ptr<DoipClient> doip);
   ~UdsClient() = default;

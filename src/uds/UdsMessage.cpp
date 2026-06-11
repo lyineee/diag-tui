@@ -75,12 +75,8 @@ DiagnosticRequest UdsMessage::ParseRequest(const std::vector<uint8_t>& raw) {
   return req;
 }
 
-DiagnosticResponse UdsMessage::ParseResponse(const std::vector<uint8_t>& raw) {
-  DiagnosticResponse resp;
-  std::memset(&resp, 0, sizeof(resp));
-  resp.completed = true;
-  resp.success = false;
-
+DiagResponse UdsMessage::ParseResponse(const std::vector<uint8_t>& raw) {
+  DiagResponse resp;
   if (raw.empty()) return resp;
 
   uint8_t first = raw[0];
@@ -88,22 +84,15 @@ DiagnosticResponse UdsMessage::ParseResponse(const std::vector<uint8_t>& raw) {
   if (first == 0x7F && raw.size() >= 3) {
     resp.success = false;
     resp.mode = raw[1];
-    resp.negative_response_code = (DiagnosticNegativeResponseCode)raw[2];
+    resp.nrc = (DiagnosticNegativeResponseCode)raw[2];
     return resp;
   }
 
   if (first & 0x40) {
     resp.success = true;
     resp.mode = first & 0xBF;
-    resp.has_pid = false;
-    if (raw.size() > 1) {
-      size_t copy_len = raw.size() - 1;
-      if (copy_len > sizeof(resp.payload)) {
-        copy_len = sizeof(resp.payload);
-      }
-      std::memcpy(resp.payload, raw.data() + 1, copy_len);
-      resp.payload_length = (uint8_t)copy_len;
-    }
+    if (raw.size() > 1)
+      resp.payload.assign(raw.begin() + 1, raw.end());
     return resp;
   }
 
