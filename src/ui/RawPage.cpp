@@ -32,7 +32,7 @@ ftxui::Component RawPage::Build() {
 
   renderer_ = Renderer(container, std::function<Element()>([this] {
     auto& state = app_.GetState();
-    std::lock_guard<std::mutex> lock(state.mtx);
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
 
     std::stringstream ss;
     ss << "Last Request:\n";

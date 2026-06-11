@@ -41,7 +41,7 @@ ftxui::Component SessionManager::Build() {
 
   status_view_ = Renderer([this] {
     auto& state = app_.GetState();
-    std::lock_guard<std::mutex> lock(state.mtx);
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
     std::string text = "Current Session: " + state.session_name + "\n";
     text += "Routing: " + std::string(state.routing_ok ? "Active" : "Inactive") + "\n";
     text += "Status: " + status_text_;

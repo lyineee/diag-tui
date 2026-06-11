@@ -14,19 +14,10 @@ using namespace ftxui;
 DidPage::DidPage(App& app) : app_(app) {
   DidDatabase::Instance().Load("config/did_database.json");
   displayed_dids_ = DidDatabase::Instance().GetAll();
-  for (auto& e : displayed_dids_) {
-    std::stringstream ss;
-    ss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << e.did;
-    did_menu_items_.push_back(ss.str() + "  " + e.name);
-  }
 }
 
 void DidPage::DoRead(uint16_t did) {
-  auto entry = DidDatabase::Instance().Find(did);
   last_read_did_ = did;
-  std::stringstream ss;
-  ss << "Reading DID 0x" << std::hex << std::uppercase << did << "...";
-  result_text_ = ss.str();
   app_.ReadDid(did);
 }
 
@@ -41,13 +32,7 @@ void DidPage::DoWrite() {
       data.push_back((uint8_t)byte);
     }
     app_.WriteDid(did, data);
-    std::stringstream out;
-    out << "Writing " << data.size() << " bytes to DID 0x"
-        << std::hex << std::uppercase << did;
-    result_text_ = out.str();
-  } catch (...) {
-    result_text_ = "Invalid input format";
-  }
+  } catch (...) {}
 }
 
 void DidPage::DoSearch() {
@@ -67,91 +52,112 @@ void DidPage::DoSearch() {
       }
     } catch (...) {}
   }
-  did_menu_items_.clear();
-  for (auto& e : displayed_dids_) {
-    std::stringstream ss;
-    ss << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << e.did;
-    did_menu_items_.push_back(ss.str() + "  " + e.name);
-  }
 }
 
-std::string DidPage::FormatResponse(uint16_t did, const std::vector<uint8_t>& data) {
-  auto entry = DidDatabase::Instance().Find(did);
-  std::stringstream ss;
-  ss << "DID:  0x" << std::hex << std::uppercase << did << "\n";
-  if (entry.did != 0) {
-    ss << "Name: " << entry.name << "\n";
-    ss << "Desc: " << entry.description << "\n";
+void DidPage::TogglePolling(std::shared_ptr<std::vector<BoolHolder>> bools) {
+  // Must release state.mtx BEFORE calling StopPolling/StartPolling
+  // to avoid deadlock with the polling thread (which also locks state.mtx).
+  bool do_stop = false;
+  std::vector<uint16_t> poll_dids;
+  int interval = 3;
+
+  {
+    auto& state = app_.GetState();
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
+
+    if (state.polling_active) {
+      do_stop = true;
+    } else {
+      for (size_t i = 0; i < displayed_dids_.size() && i < bools->size(); i++) {
+        if (bools->at(i).val) {
+          poll_dids.push_back(displayed_dids_[i].did);
+        }
+      }
+      try { interval = std::stoi(interval_input_); }
+      catch (...) {}
+      if (interval < 1) interval = 1;
+    }
+  }  // mutex released here
+
+  if (do_stop) {
+    app_.StopPolling();
+  } else if (!poll_dids.empty()) {
+    app_.StartPolling(poll_dids, interval);
   }
-  ss << "Size: " << std::dec << (int)data.size() << " bytes\n";
-  ss << "Hex:  ";
-  for (auto b : data) {
-    ss << std::hex << std::setfill('0') << std::setw(2) << (int)b << " ";
-  }
-  return ss.str();
 }
 
 ftxui::Component DidPage::Build() {
   input_did_ = Input(&did_input_, " e.g. F190");
   input_data_ = Input(&data_input_, " hex data (e.g. 01 02)");
+  input_interval_ = Input(&interval_input_, " sec");
 
   btn_read_ = Button("Read", [this] {
     if (!did_input_.empty()) {
       try { DoRead((uint16_t)std::stoul(did_input_, nullptr, 16)); }
-      catch (...) { result_text_ = "Invalid DID"; }
+      catch (...) {}
     }
   });
 
   btn_write_ = Button("Write", [this] { DoWrite(); });
   btn_search_ = Button("Search", [this] { DoSearch(); });
 
-  // Interactive DID list using Menu
-  MenuOption menu_opt;
-  menu_opt.entries = &did_menu_items_;
-  menu_opt.selected = &selected_did_index_;
-  menu_opt.on_change = [this] {
-    if (selected_did_index_ >= 0 && (size_t)selected_did_index_ < displayed_dids_.size()) {
-      auto& e = displayed_dids_[selected_did_index_];
-      std::stringstream ss;
-      ss << std::hex << e.did;
-      did_input_ = ss.str();
-    }
-  };
-  menu_opt.on_enter = [this] {
-    if (selected_did_index_ >= 0 && (size_t)selected_did_index_ < displayed_dids_.size()) {
-      DoRead(displayed_dids_[selected_did_index_].did);
-    }
-  };
+  auto bools_ptr = std::make_shared<std::vector<BoolHolder>>();
+  btn_poll_ = Button("Toggle", [this, bools_ptr] { TogglePolling(bools_ptr); });
 
-  did_menu_ = Menu(menu_opt);
+  // Build DID list using DidItem
+  Components did_components;
+  bools_ptr->resize(displayed_dids_.size());
+  did_items_.clear();
 
-  auto container = Container::Vertical({
+  for (size_t i = 0; i < displayed_dids_.size(); i++) {
+    bool* exp_ptr = &(*bools_ptr)[i].val;
+    auto item = std::make_shared<DidItem>(app_, displayed_dids_[i], exp_ptr);
+    did_components.push_back(item->Build());
+    did_items_.push_back(item);  // keep alive (Renderer captures this)
+  }
+
+  auto did_list = Container::Vertical(std::move(did_components));
+
+  auto controls = Container::Vertical({
       input_did_,
       btn_search_,
       btn_read_,
       btn_write_,
       input_data_,
-      did_menu_,
   });
 
-  renderer_ = Renderer(container, std::function<Element()>([this] {
+  auto poll_row = Container::Horizontal({
+      input_interval_,
+      btn_poll_,
+  });
+
+  renderer_ = Renderer(Container::Vertical({controls, poll_row, did_list}),
+      std::function<Element()>([this, bools_ptr, did_list] {
     auto& state = app_.GetState();
-    std::lock_guard<std::mutex> lock(state.mtx);
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
 
-    // If we have a DID read response, show it
+    std::string result;
     if (state.last_did_read != 0 && !state.last_did_response.empty()) {
-      result_text_ = FormatResponse(state.last_did_read, state.last_did_response);
+      auto entry = DidDatabase::Instance().Find(state.last_did_read);
+      auto val_it = state.did_values.find(state.last_did_read);
+      std::stringstream ss;
+      ss << "DID:  0x" << std::hex << std::uppercase << state.last_did_read << "\n";
+      if (entry.did != 0) {
+        ss << "Name: " << entry.name << "\n";
+        ss << "Desc: " << entry.description << "\n";
+      }
+      if (val_it != state.did_values.end()) {
+        ss << "Size: " << std::dec << (int)val_it->second.raw.size() << " bytes\n";
+        ss << "Hex:  " << val_it->second.display;
+        if (val_it->second.is_numeric) {
+          ss << "\nDec:  " << std::dec << val_it->second.numeric_value;
+        }
+      }
+      result = ss.str();
     }
 
-    Elements list_items;
-    for (size_t i = 0; i < did_menu_items_.size(); i++) {
-      auto el = text(did_menu_items_[i]);
-      if ((int)i == selected_did_index_) el = el | bold | color(Color::Cyan);
-      list_items.push_back(el);
-    }
-    if (list_items.empty()) {
-      list_items.push_back(text(" No DID entries found "));
-    }
+    int expanded_count = 0;
+    for (size_t i = 0; i < bools_ptr->size(); i++) if ((*bools_ptr)[i].val) expanded_count++;
 
     return vbox({
                window(text(" DID Browser "),
@@ -163,9 +169,21 @@ ftxui::Component DidPage::Build() {
                           window(text(" Write Data "),
                                  hbox({text(" Data: ") | bold, input_data_->Render() | flex})),
                       })) | size(WIDTH, EQUAL, 60),
-               window(text(" DID List (arrows to navigate, Enter to read) "),
-                      vbox(std::move(list_items)) | vscroll_indicator | yframe | flex),
-               window(text(" Result "), paragraph(result_text_) | flex),
+               window(text(" DID List (Enter: expand/collapse, arrows: navigate) "),
+                      did_list->Render() | vscroll_indicator | yframe | flex),
+               window(text(" Polling "),
+                      hbox({
+                          text(" Interval: ") | bold,
+                          input_interval_->Render() | size(WIDTH, EQUAL, 4),
+                          text(" s "),
+                          btn_poll_->Render(),
+                          separator(),
+                          text(state.polling_active ? " Active " : " Idle ") |
+                              (state.polling_active ? color(Color::GreenLight) : color(Color::GrayDark)),
+                          separator(),
+                          text(std::to_string(expanded_count) + " DID(s) monitored ") | dim,
+                      })),
+               window(text(" Result "), paragraph(result) | flex),
            }) |
            flex;
   }));

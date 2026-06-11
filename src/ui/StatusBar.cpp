@@ -9,7 +9,7 @@ using namespace ftxui;
 StatusBar::StatusBar(App& app) : app_(app) {
   renderer_ = Renderer(std::function<Element()>([this] {
     auto& state = app_.GetState();
-    std::lock_guard<std::mutex> lock(state.mtx);
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
 
     Elements left;
     left.push_back(text(" FuseDiag v0.1 "));
@@ -45,6 +45,6 @@ ftxui::Component StatusBar::Build() { return renderer_; }
 
 void StatusBar::Update() {
   auto& state = app_.GetState();
-  std::lock_guard<std::mutex> lock(state.mtx);
+  std::lock_guard<std::recursive_mutex> lock(state.mtx);
   connected_ = state.connected;
 }

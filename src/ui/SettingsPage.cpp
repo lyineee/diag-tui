@@ -12,7 +12,7 @@ using namespace ftxui;
 
 SettingsPage::SettingsPage(App& app) : app_(app) {
   auto& state = app.GetState();
-  std::lock_guard<std::mutex> lock(state.mtx);
+  std::lock_guard<std::recursive_mutex> lock(state.mtx);
   ip_input_ = state.config_ip;
   std::stringstream ss;
   ss << std::hex << state.config_source_addr;
@@ -25,7 +25,7 @@ SettingsPage::SettingsPage(App& app) : app_(app) {
 void SettingsPage::DoConnect() {
   auto& state = app_.GetState();
   {
-    std::lock_guard<std::mutex> lock(state.mtx);
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
     state.config_ip = ip_input_;
     try {
       state.config_source_addr = (uint16_t)std::stoul(src_input_, nullptr, 16);
@@ -41,7 +41,7 @@ void SettingsPage::DoDiscover() {
 
 void SettingsPage::SelectEcu(int index) {
   auto& state = app_.GetState();
-  std::lock_guard<std::mutex> lock(state.mtx);
+  std::lock_guard<std::recursive_mutex> lock(state.mtx);
   if (index >= 0 && (size_t)index < state.discovered_ecus.size()) {
     ip_input_ = state.discovered_ecus[index].source_address;
     selected_ecu_ = index;
@@ -68,7 +68,7 @@ ftxui::Component SettingsPage::Build() {
 
   renderer_ = Renderer(container, std::function<Element()>([this] {
     auto& state = app_.GetState();
-    std::lock_guard<std::mutex> lock(state.mtx);
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
 
     std::string status;
     if (state.connecting) {

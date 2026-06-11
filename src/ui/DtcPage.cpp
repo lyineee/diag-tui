@@ -14,23 +14,24 @@ DtcPage::DtcPage(App& app) : app_(app) {}
 ftxui::Component DtcPage::Build() {
   renderer_ = Renderer(std::function<Element()>([this] {
     auto& state = app_.GetState();
-    std::lock_guard<std::mutex> lock(state.mtx);
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
 
     Elements dtc_elements;
     std::string detail_text;
 
-    // Parse DTC response data stored in raw_response_text
-    // When DTC response arrives, App parses and stores it
-    // For now, show raw hex or a message
-    if (state.last_raw_response.size() >= 4) {
-      // Try to parse DTCs from raw response
-      const auto& data = state.last_raw_response;
-      size_t i = 0;
+    const auto& data = state.last_dtc_response;
+    int dtc_count = 0;
+
+    if (data.size() >= 4) {
+      size_t offset = 0;
+      if (offset < data.size() && data[offset] == 0x02) offset++;
+      if (offset < data.size()) offset++;
+
       int dtc_idx = 0;
-      while (i + 3 <= data.size()) {
-        uint32_t code = ((uint32_t)data[i] << 16) |
-                        ((uint32_t)data[i + 1] << 8) | data[i + 2];
-        uint8_t status = (i + 3 < data.size()) ? data[i + 3] : 0;
+      while (offset + 3 <= data.size()) {
+        uint32_t code = ((uint32_t)data[offset] << 16) |
+                        ((uint32_t)data[offset + 1] << 8) | data[offset + 2];
+        uint8_t status = (offset + 3 < data.size()) ? data[offset + 3] : 0;
 
         uint8_t first_byte = (code >> 16) & 0xFF;
         uint16_t rest = code & 0xFFFF;
@@ -62,7 +63,6 @@ ftxui::Component DtcPage::Build() {
         if (dtc_idx == selected_index_) el = el | bold | color(Color::Cyan) | bgcolor(Color::GrayDark);
         dtc_elements.push_back(el);
 
-        // Show detail for selected DTC
         if (dtc_idx == selected_index_) {
           char code_str2[16];
           snprintf(code_str2, sizeof(code_str2), "%c%04X",
@@ -80,9 +80,12 @@ ftxui::Component DtcPage::Build() {
         }
 
         dtc_idx++;
-        i += (i + 3 + 1 <= data.size()) ? 4 : 3;
+        dtc_count = dtc_idx;
+        offset += (offset + 4 <= data.size()) ? 4 : 3;
       }
     }
+
+    if (selected_index_ >= dtc_count) selected_index_ = dtc_count > 0 ? dtc_count - 1 : 0;
 
     if (dtc_elements.empty()) {
       dtc_elements.push_back(text(" No DTCs found "));
@@ -102,7 +105,32 @@ ftxui::Component DtcPage::Build() {
     return hbox({dtc_list_element, separator(), detail_element}) | flex;
   }));
 
-  return renderer_;
+  // Wrap in CatchEvent to handle arrow key navigation between DTCs
+  return renderer_ | CatchEvent([this](Event event) {
+    auto& state = app_.GetState();
+    std::lock_guard<std::recursive_mutex> lock(state.mtx);
+    size_t dtc_count = 0;
+    const auto& data = state.last_dtc_response;
+    if (data.size() >= 4) {
+      size_t offset = 0;
+      if (offset < data.size() && data[offset] == 0x02) offset++;
+      if (offset < data.size()) offset++;
+      while (offset + 3 <= data.size()) {
+        dtc_count++;
+        offset += (offset + 4 <= data.size()) ? 4 : 3;
+      }
+    }
+
+    if (event == Event::ArrowUp || event == Event::Character('k')) {
+      if (selected_index_ > 0) selected_index_--;
+      return true;
+    }
+    if (event == Event::ArrowDown || event == Event::Character('j')) {
+      if (selected_index_ + 1 < (int)dtc_count) selected_index_++;
+      return true;
+    }
+    return false;
+  });
 }
 
 void DtcPage::Refresh() {

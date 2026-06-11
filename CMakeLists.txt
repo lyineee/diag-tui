@@ -120,6 +120,7 @@ set(SOURCES
   src/ui/RawPage.cpp
   src/ui/SessionManager.cpp
   src/ui/SettingsPage.cpp
+  src/ui/DidItem.cpp
   src/uds/UdsClient.cpp
   src/uds/DidDatabase.cpp
   src/uds/UdsMessage.cpp

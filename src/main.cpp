@@ -15,6 +15,7 @@
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/component/event.hpp>
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
 
 #include <memory>
 #include <string>
@@ -22,7 +23,10 @@
 using namespace ftxui;
 
 int main() {
+  auto file_logger = spdlog::basic_logger_mt("fuse-diag", "fuse-diag.log", true);
+  spdlog::set_default_logger(file_logger);
   spdlog::set_level(spdlog::level::debug);
+  spdlog::flush_on(spdlog::level::debug);
   spdlog::info("FuseDiag v0.1 starting...");
 
   App app;
