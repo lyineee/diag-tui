@@ -36,6 +36,8 @@ struct AppState {
   std::vector<uint8_t> last_did_response;
   uint16_t last_did_read{0};
   std::vector<uint8_t> last_dtc_response;
+  uint16_t last_manual_did_read{0};
+  std::vector<uint8_t> last_manual_did_response;
   std::vector<EcuInfo> discovered_ecus;
   std::string config_ip{"127.0.0.1"};
   uint16_t config_source_addr{0x0E00};
@@ -67,6 +69,7 @@ public:
   void ReadDtc();
   void ClearDtc();
   void ReadDid(uint16_t did);
+  void ReadDidManual(uint16_t did);
   void WriteDid(uint16_t did, const std::vector<uint8_t>& data);
   void SendRaw(const std::vector<uint8_t>& data);
   void ChangeSession(uint8_t session);
@@ -75,6 +78,8 @@ public:
   void SetTargetAddress(uint16_t addr);
   void SetScreen(ftxui::ScreenInteractive* s);
 
+  using PollDidQuery = std::function<std::vector<uint16_t>()>;
+  void SetPollQuery(PollDidQuery query);
   void StartPolling(const std::vector<uint16_t>& dids, int interval_s);
   void StopPolling();
   bool IsPolling() const;
@@ -95,5 +100,6 @@ private:
   AppState state_;
   std::thread polling_thread_;
   std::atomic<bool> polling_stop_{false};
+  PollDidQuery poll_query_;
   ftxui::ScreenInteractive* screen_{nullptr};
 };

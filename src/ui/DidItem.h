@@ -16,4 +16,6 @@ private:
   bool* expanded_;
   std::string label_;
   bool graph_checkbox_{false};
+  bool graph_state_saved_{false};
+  bool expand_saved_{false};
 };

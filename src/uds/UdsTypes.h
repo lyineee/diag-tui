@@ -45,4 +45,5 @@ struct DidEntry {
   std::string description;
   uint8_t data_size{0};
   bool graphable{false};
+  bool expanded{false};
 };

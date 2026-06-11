@@ -17,10 +17,11 @@ DidItem::DidItem(App& app, const DidEntry& entry, bool* expanded)
      << "  " << entry.name;
   label_ = ss.str();
   graph_checkbox_ = entry.graphable;
+  graph_state_saved_ = graph_checkbox_;
 }
 
 ftxui::Component DidItem::Build() {
-  // ── toggle button (same as Collapsible internal) ──────────────
+  // ── toggle button (Checkbox styled as Collapsible) ────────────
   CheckboxOption toggle_opt;
   toggle_opt.transform = [](EntryState s) {
     auto prefix = text(s.state ? "▼ " : "▶ ");
@@ -31,17 +32,24 @@ ftxui::Component DidItem::Build() {
   };
   auto toggle = Checkbox(label_, expanded_, toggle_opt);
 
-  // ── value display (Renderer, no event handling needed) ────────
+  // ── value display (shown when expanded) ──────────────────────
   auto value_renderer = Renderer(std::function<Element()>([this] {
     auto& state = app_.GetState();
     std::lock_guard<std::recursive_mutex> lock(state.mtx);
+
+    // Persist graph state if changed (via Checkbox toggle)
+    if (graph_checkbox_ != graph_state_saved_) {
+      graph_state_saved_ = graph_checkbox_;
+      DidDatabase::Instance().SetGraphable(entry_.did, graph_checkbox_);
+      DidDatabase::Instance().Save("config/did_database.json");
+    }
+
     auto val_it = state.did_values.find(entry_.did);
     auto ve = DidDatabase::Instance().Find(entry_.did);
     std::stringstream ss;
-    if (ve.did != 0) {
+    if (ve.did != 0)
       ss << ve.name << "  (0x" << std::hex << std::uppercase
          << std::setfill('0') << std::setw(4) << entry_.did << ")\n";
-    }
     if (val_it != state.did_values.end()) {
       ss << "Size: " << std::dec << (int)val_it->second.raw.size() << " bytes\n";
       ss << "Hex:  " << val_it->second.display;
@@ -52,23 +60,22 @@ ftxui::Component DidItem::Build() {
     }
     return paragraph(ss.str()) | color(Color::GreenLight);
   }));
+  auto value_maybe = Maybe(value_renderer, expanded_);
 
-  // ── refresh button ──────────────────────────────────────────
+  // ── controls row: refresh + graph toggle ─────────────────────
   ButtonOption btn_opt;
   btn_opt.transform = [](EntryState s) {
     auto el = text(s.label);
     if (s.focused) el = el | bold | color(Color::Cyan);
     return el;
   };
-  auto refresh_btn = Button(" [Refresh] ", [this] { app_.ReadDid(entry_.did); }, btn_opt);
+  auto refresh_btn = Button(" [Refresh] ", [this] { app_.ReadDidManual(entry_.did); }, btn_opt);
+  auto graph_toggle = Checkbox(" Graph ", &graph_checkbox_);
 
-  // ── graph checkbox ──────────────────────────────────────────
-  Component graph_chk;
-  if (entry_.graphable) {
-    graph_chk = Checkbox(" Graph ", &graph_checkbox_);
-  }
+  auto controls_row = Container::Horizontal({refresh_btn, graph_toggle});
+  auto controls_maybe = Maybe(controls_row, expanded_);
 
-  // ── graph display (Maybe, shown only when graph is enabled) ──
+  // ── graph display (when expanded AND graph enabled) ──────────
   auto graph_renderer = Renderer(std::function<Element()>([this] {
     auto& state = app_.GetState();
     std::lock_guard<std::recursive_mutex> lock(state.mtx);
@@ -109,17 +116,25 @@ ftxui::Component DidItem::Build() {
         window(text(lbl.str()), graph(graph_fn) | size(WIDTH, EQUAL, 48) | size(HEIGHT, EQUAL, 8)),
     });
   }));
-  auto graph_maybe = Maybe(graph_renderer, &graph_checkbox_);
+  auto graph_maybe = Maybe(graph_renderer, [this] { return *expanded_ && graph_checkbox_; });
 
-  // ── content layout (visible only when expanded) ──────────────
-  Component content_inner;
-  if (graph_chk) {
-    auto controls = Container::Horizontal({refresh_btn, graph_chk});
-    content_inner = Container::Vertical({value_renderer, controls, graph_maybe});
-  } else {
-    content_inner = Container::Vertical({value_renderer, refresh_btn});
-  }
-  auto content = Maybe(content_inner, expanded_);
+  // ── Persist expanded state whenever it changes ──────────────
+  expand_saved_ = *expanded_;
+  auto persist_expand = Renderer(std::function<Element()>([this] {
+    if (*expanded_ != expand_saved_) {
+      expand_saved_ = *expanded_;
+      DidDatabase::Instance().SetExpanded(entry_.did, *expanded_);
+      DidDatabase::Instance().Save("config/did_database.json");
+    }
+    return text("") | size(WIDTH, EQUAL, 0) | size(HEIGHT, EQUAL, 0);
+  }));
 
-  return Container::Vertical({toggle, content});
+  // ── All children siblings for proper keyboard navigation ──────
+  return Container::Vertical({
+      toggle,
+      persist_expand,
+      value_maybe,
+      controls_maybe,
+      graph_maybe,
+  });
 }

@@ -135,6 +135,11 @@ void App::OnUdsResponse(const DiagnosticResponse& resp) {
 
         state_.did_values[did] = val;
 
+        // If this response matches a manual read, update the manual result too
+        if (did == state_.last_manual_did_read) {
+          state_.last_manual_did_response.assign(data_start, data_start + data_len);
+        }
+
         // History for numeric values
         if (val.is_numeric) {
           auto& hist = state_.did_history[did];
@@ -203,6 +208,13 @@ void App::ReadDid(uint16_t did) {
   uds_->ReadDataByIdentifier(did);
 }
 
+void App::ReadDidManual(uint16_t did) {
+  std::lock_guard<std::recursive_mutex> lock(state_.mtx);
+  state_.last_manual_did_read = did;
+  state_.last_manual_did_response.clear();
+  uds_->ReadDataByIdentifier(did);
+}
+
 void App::WriteDid(uint16_t did, const std::vector<uint8_t>& data) {
   uds_->WriteDataByIdentifier(did, data);
 }
@@ -252,7 +264,11 @@ void App::PollingThread() {
     int interval;
     {
       std::lock_guard<std::recursive_mutex> lock(state_.mtx);
-      dids = state_.polled_dids;
+      if (poll_query_) {
+        dids = poll_query_();
+      } else {
+        dids = state_.polled_dids;
+      }
       interval = state_.polling_interval_s;
     }
 
@@ -269,6 +285,8 @@ void App::PollingThread() {
 }
 
 void App::SetScreen(ftxui::ScreenInteractive* s) { screen_ = s; }
+
+void App::SetPollQuery(PollDidQuery query) { poll_query_ = std::move(query); }
 
 std::shared_ptr<DoipClient> App::GetDoipClient() const { return doip_; }
 std::shared_ptr<UdsClient> App::GetUdsClient() const { return uds_; }

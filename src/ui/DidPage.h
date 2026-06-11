@@ -16,9 +16,9 @@ public:
 private:
   void DoRead(uint16_t did);
   void DoWrite();
-  void DoSearch();
   struct BoolHolder { bool val; };
   void TogglePolling(std::shared_ptr<std::vector<BoolHolder>> bools);
+  void CollapseAll(std::shared_ptr<std::vector<BoolHolder>> bools);
 
   App& app_;
   ftxui::Component renderer_;
@@ -26,13 +26,14 @@ private:
   ftxui::Component input_data_;
   ftxui::Component btn_read_;
   ftxui::Component btn_write_;
-  ftxui::Component btn_search_;
   ftxui::Component input_interval_;
   ftxui::Component btn_poll_;
+  ftxui::Component btn_collapse_all_;
   std::string did_input_;
   std::string data_input_;
   std::string interval_input_{"3"};
   uint16_t last_read_did_{0};
   std::vector<DidEntry> displayed_dids_;
-  std::vector<std::shared_ptr<DidItem>> did_items_;  // keep DidItem alive
+  std::vector<std::shared_ptr<DidItem>> did_items_;
+  int did_selector_{0};
 };
