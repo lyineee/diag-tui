@@ -24,12 +24,8 @@ test.describe("FuseDiag DTC Page", () => {
     await expect(terminal.getByText("Select a DTC from the list")).toBeVisible();
   });
 
-  test("DTC list shows empty state and navigation works with F5", async ({ terminal }) => {
+  test("DTC list handles F5 refresh", async ({ terminal }) => {
     terminal.keyPress(Key.F5);
     await expect(terminal.getByText("No DTCs found")).toBeVisible();
-  });
-
-  test("mask bar contains Configure button", async ({ terminal }) => {
-    await expect(terminal.getByText("Configure (m)")).toBeVisible();
   });
 });

@@ -176,6 +176,25 @@ auto invisible = Renderer(btn_bar, [] { return text(""); });
 // invisible suppresses visual output, but Buttons remain focusable
 ```
 
+**Container::Vertical's `MoveSelectorDown` fires BEFORE forwarding the event to the active child.** Once the selector moves, the event goes to the NEW active child — the previous child never sees it. This means pressing ArrowDown when component A has focus will move focus to component B, and component A's CatchEvent/OnEvent won't receive the ArrowDown. This is by design.
+
+**Focus wraps around.** At the last child, ArrowDown wraps to the first child; at the first child, ArrowUp wraps to the last. This is how ftxui's Container::Vertical cycles focus.
+
+**Example: DtcMaskFilter collapsible panel with `Maybe`**
+
+When the mask is collapsed, 8 `Checkbox` components and the action `Button` bar are hidden via `Maybe`:
+```cpp
+auto show_expanded = [this] { return expanded; };
+auto show_collapsed = [this] { return !expanded; };
+auto check_list_vis = Maybe(check_list, show_expanded);   // hidden when collapsed
+auto btn_bar_vis    = Maybe(btn_bar, show_expanded);      // hidden when collapsed
+auto btn_expand_vis = Maybe(btn_expand, show_collapsed); // visible only when collapsed
+
+Container::Vertical({check_list_vis, btn_bar_vis, btn_expand_vis});
+```
+
+When collapsed, only `btn_expand_vis` is focusable. When expanded, only `check_list_vis` and `btn_bar_vis` are focusable. No empty stops in the focus chain. This is the correct pattern for any component that toggles between visible/interactive states.
+
 ### Lambda Capture Safety
 
 Avoid `[&]` in lambdas that outlive the current scope (e.g. `Renderer` or `Button` callbacks in `Build()`).
@@ -239,3 +258,38 @@ When background data arrives (UDS response, connection status change), call `scr
 - **Port in use**: `fuser -k 13400/tcp 13400/udp` to release
 - **Test server**: `./build/test-doip-server` (does NOT need root, port 13400 is >1024)
 - **UI not refreshing after background update**: Call `screen_->PostEvent(ftxui::Event::Custom)` in the data callback
+
+## Testing Methodology
+
+### E2E Tests (tui-test)
+
+Automated TUI tests using [microsoft/tui-test](https://github.com/microsoft/tui-test). Tests launch `fuse-diag` in a real terminal pty and simulate keystrokes. Best suited for **special keys** (Tab, F2-F12, Escape, Arrow keys) and **content rendering assertions**.
+
+```bash
+npm install              # one-time setup
+npm test                 # run all E2E tests
+```
+
+Character keys (`m`, `j`, `k`, `a`, `r`) may not reach ftxui's event loop reliably through the pty. For those, first verify manually with terminal MCP, then automate if stable.
+
+### Terminal MCP (Visual Verification)
+
+Use terminal MCP to interactively verify TUI behavior. `sendKey` supports special keys; `type` sends character input when the correct component has focus.
+
+**Workflow:**
+1. Start terminal MCP session with `test-doip-server` and `fuse-diag`
+2. Execute keyboard navigation step by step
+3. `takeScreenshot(format: "text")` at each step to trace focus
+4. When a Button shows `[Label]` (brackets = focused), interact with it
+5. Convert verified sequences to E2E tests
+
+**Example: mask expansion**
+```
+ArrowRight  → focus enters DTC content area
+ArrowDown   → through mask → list renderer
+ArrowDown   → wraps to Configure (m) button [shows brackets]
+type("m")   → mask expands with 8 checkboxes
+```
+
+**Debugging focus issues:**
+Use screenshots to trace focus position. A focused `Button` renders as `[Label]` (with brackets, Ascii style).
