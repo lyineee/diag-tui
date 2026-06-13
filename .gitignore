@@ -35,3 +35,6 @@ _deps/
 
 # Logs
 *.log
+node_modules/
+.tui-test/
+tui-traces/

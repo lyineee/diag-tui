@@ -1,0 +1,13 @@
+{
+  "name": "fuse-diag-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pretest": "find build -name '*.ts' -delete 2>/dev/null; fuser -k 13400/tcp 2>/dev/null; fuser -k 13400/udp 2>/dev/null; exit 0",
+    "test": "npx @microsoft/tui-test",
+    "test:dtc": "npx @microsoft/tui-test dtc"
+  },
+  "devDependencies": {
+    "@microsoft/tui-test": "^0.0.4"
+  }
+}
