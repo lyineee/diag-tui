@@ -22,15 +22,21 @@ test.describe("FuseDiag DTC Page", () => {
     await expect(terminal.getByText("No DTCs found")).toBeVisible();
   });
 
-  test("mask panel opens and closes with m key", async ({ terminal }) => {
+  test("mask opens with m, closes with Escape", async ({ terminal }) => {
     terminal.keyPress("m");
+    terminal.keyPress(Key.Escape);
+  });
+
+  test("mask shortcuts a, r, and keyboard navigation", async ({ terminal }) => {
+    terminal.keyPress("m");
+    terminal.keyPress("a");
+    terminal.keyPress("r");
     terminal.keyPress("m");
   });
 
-  test("handles F5 refresh and j/k navigation", async ({ terminal }) => {
+  test("F5 refresh and j/k list navigation", async ({ terminal }) => {
     terminal.keyPress(Key.F5);
     terminal.keyPress("j");
     terminal.keyPress("k");
-    terminal.keyPress(Key.Escape);
   });
 });
