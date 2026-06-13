@@ -139,6 +139,43 @@ mask_panel |= CatchEvent(...);   // handles mask shortcuts
 // Buttons work naturally without interference
 ```
 
+### Focus Chain & Maybe
+
+ftxui's `Container::Vertical` / `Container::Horizontal` only cycle focus through **focusable** children.
+Non-focusable children are skipped. Hidden components (collapsed panels, invisible wrappers)
+must be excluded from the focus chain or they become "ghost" stops during Tab navigation.
+
+**Use `Maybe` to conditionally exclude components from the focus chain:**
+
+```cpp
+auto show = [this] { return expanded; };
+auto panel = Maybe(my_panel, show);
+auto alt_btn = Maybe(my_button, [this] { return !expanded; });
+
+// Only one set of components is focusable at a time
+Container::Vertical({panel, alt_btn});
+```
+
+`Maybe` calls the condition function on every event to decide whether the child should
+receive focus. When hidden, `Focusable()` returns `false` and the component is invisible
+to keyboard navigation. The child still renders normally — control visibility in the
+`Renderer` lambda separately.
+
+**Never put `Renderer(..., [] { return text(""); })` as a bare child of Container::Vertical.**
+This creates an invisible-but-focusable component that stops keyboard navigation.
+Always wrap with `Maybe` or exclude entirely.
+
+**For inline-rendered components (buttons rendered in a parent Render's lambda):**
+keep the real `Button` components in the Container tree for focus/event support,
+but suppress their visual output with a wrapping Renderer that returns empty text.
+This way the buttons are Tab-able but their visual rendering comes from the parent.
+
+```cpp
+auto btn_bar = Container::Horizontal({btn1, btn2});
+auto invisible = Renderer(btn_bar, [] { return text(""); });
+// invisible suppresses visual output, but Buttons remain focusable
+```
+
 ### Lambda Capture Safety
 
 Avoid `[&]` in lambdas that outlive the current scope (e.g. `Renderer` or `Button` callbacks in `Build()`).
@@ -195,6 +232,7 @@ When background data arrives (UDS response, connection status change), call `scr
 ## Troubleshooting
 
 - **Component not responding to keys**: Check that the Renderer is focusable (`[](bool)` variant) and `CatchEvent` is on the right component. Ensure `CatchEvent` returns `false` for events that child components should handle
+- **Keyboard Tab skips or lands on invisible items**: Hidden or empty components in `Container::Vertical`/`Horizontal` still appear in the focus chain. Use `Maybe` to conditionally exclude them
 - **Program hangs on start/interaction**: Check for `[&]` captures in `Build()` lambdas — local variables become dangling references
 - **Toggle freeze**: Use standard Button + Checkbox components, no custom OnEvent/Focusable override
 - **spdlog interference**: Logs go to `fuse-diag.log`, not stdout

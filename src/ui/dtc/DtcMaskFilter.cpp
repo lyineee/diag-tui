@@ -62,7 +62,13 @@ Component DtcMaskFilter::Build() {
 
   auto btn_bar = Container::Horizontal({btn_all, btn_inv, btn_close});
 
-  return Renderer(Container::Vertical({check_list, btn_bar, btn_expand}), [=] {
+  auto show_expanded = [this] { return expanded; };
+  auto show_collapsed = [this] { return !expanded; };
+  auto check_list_vis = Maybe(check_list, show_expanded);
+  auto btn_bar_vis = Maybe(btn_bar, show_expanded);
+  auto btn_expand_vis = Maybe(btn_expand, show_collapsed);
+
+  return Renderer(Container::Vertical({check_list_vis, btn_bar_vis, btn_expand_vis}), [=] {
     if (!expanded) {
       return hbox({
         text(" Mask: 0x" + MaskHex(mask)) | dim,

@@ -29,7 +29,6 @@ Component DtcListPanel::Build() {
   auto btn_refresh = Button("Refresh (F5)", [this] { Refresh(); }, ButtonOption::Ascii());
   auto btn_clear = Button("Clear (F6)", [this] { app_.ClearDtc(); }, ButtonOption::Ascii());
   auto btn_bar = Container::Horizontal({btn_refresh, btn_clear});
-  auto btn_bar_hidden = Renderer(btn_bar, [] { return text(""); });
 
   auto list_renderer = Renderer([this, btn_refresh, btn_clear](bool) -> Element {
     auto& state = app_.GetState();
@@ -150,9 +149,11 @@ Component DtcListPanel::Build() {
     return false;
   });
 
+  auto btn_bar_wrap = Renderer(btn_bar, [] { return text(""); });
+
   Components children;
   children.push_back(mask_component);
   children.push_back(list_renderer);
-  children.push_back(btn_bar_hidden);
+  children.push_back(btn_bar_wrap);
   return Container::Vertical(std::move(children));
 }
