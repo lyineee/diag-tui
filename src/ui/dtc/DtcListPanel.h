@@ -3,6 +3,7 @@
 #include "app/App.h"
 #include "ui/dtc/DtcMaskFilter.h"
 #include <ftxui/component/component.hpp>
+#include <ftxui/screen/box.hpp>
 
 class DtcListPanel {
 public:
@@ -14,4 +15,5 @@ private:
   App& app_;
   DtcMaskFilter mask_;
   int selected_{0};
+  ftxui::Box list_box_;
 };

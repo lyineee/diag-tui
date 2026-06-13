@@ -1,6 +1,7 @@
 #include "ui/dtc/DtcMaskFilter.h"
-#include "uds/UdsTypes.h"
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/component/component.hpp>
+#include <ftxui/component/event.hpp>
 
 #include <sstream>
 #include <iomanip>
@@ -13,86 +14,85 @@ static std::string MaskHex(uint8_t m) {
   return ss.str();
 }
 
-Element DtcMaskFilter::Render() {
-  if (!expanded) {
-    return hbox({
-      text(" Mask: 0x") | dim,
-      text(MaskHex(mask)) | bold,
-      text(" ") | dim,
-      text("[m:configure]") | dim,
-    });
-  }
+void DtcMaskFilter::OnChange(std::function<void(uint8_t)> cb) { on_change_ = std::move(cb); }
 
-  const char* names[] = {
-    "testFailed",
-    "testFailedThisOperationCycle",
-    "pendingDTC",
-    "confirmedDTC",
-    "testNotCompletedSinceLastClear",
-    "testFailedSinceLastClear",
-    "testNotCompletedThisOperationCycle",
-    "warningIndicatorRequested"
+Component DtcMaskFilter::Build() {
+  static const char* kNames[] = {
+    "testFailed", "testFailedThisOperationCycle",
+    "pendingDTC", "confirmedDTC",
+    "testNotCompletedSinceLastClear", "testFailedSinceLastClear",
+    "testNotCompletedThisOperationCycle", "warningIndicatorRequested"
   };
 
-  Elements rows;
-  for (int i = 0; i < 8; i++) {
-    uint8_t bit = (uint8_t)(1 << i);
-    bool on = mask & bit;
-    auto cur = text(i == cursor ? "\u25B6 " : "   ");
-    auto chk = text(on ? "[\u2713]" : "[ ]");
-    if (on) chk = chk | bold;
-    auto row = hbox({cur, chk, text(" " + std::string(names[i]))});
-    if (i == cursor) row = row | inverted;
-    rows.push_back(row);
-  }
-  rows.push_back(separator());
-  rows.push_back(hbox({
-    text(" Mask: 0x"), text(MaskHex(mask)) | bold,
-    text("   "),
-    text("jk:nav") | dim, text("  "),
-    text("Space:toggle") | dim, text("  "),
-    text("Enter:apply") | dim, text("  "),
-    text("a:all") | dim, text("  "),
-    text("r:invert") | dim, text("  "),
-    text("m:collapse") | dim,
-  }));
+  for (int i = 0; i < 8; i++) bits_[i] = mask & (1 << i);
 
-  return window(text(" DTC Status Mask "), vbox(std::move(rows)));
-}
+  auto build = [this] {
+    mask = 0;
+    for (int i = 0; i < 8; i++) if (bits_[i]) mask |= (1 << i);
+    if (on_change_) on_change_(mask);
+  };
 
-bool DtcMaskFilter::HandleEvent(Event event, uint8_t& mask_out) {
-  if (!expanded) {
-    if (event == Event::Character('m')) {
-      expanded = true;
+  auto reset_bits = [this] {
+    for (int i = 0; i < 8; i++) bits_[i] = mask & (1 << i);
+  };
+
+  Components checks;
+  for (int i = 0; i < 8; i++) checks.push_back(Checkbox(kNames[i], &bits_[i]));
+  auto check_list = Container::Vertical(std::move(checks));
+
+  auto btn_all = Button("All (a)", [this, build] {
+    for (int i = 0; i < 8; i++) bits_[i] = true;
+    build();
+  }, ButtonOption::Ascii());
+
+  auto btn_inv = Button("Invert (r)", [this, build] {
+    for (int i = 0; i < 8; i++) bits_[i] = !bits_[i];
+    build();
+  }, ButtonOption::Ascii());
+
+  auto btn_close = Button("Close (m)", [this, reset_bits] {
+    reset_bits();
+    expanded = false;
+  }, ButtonOption::Ascii());
+
+  auto btn_expand = Button("Configure (m)", [this, reset_bits] {
+    reset_bits();
+    expanded = true;
+  }, ButtonOption::Ascii());
+
+  auto btn_bar = Container::Horizontal({btn_all, btn_inv, btn_close});
+
+  return Renderer(Container::Vertical({check_list, btn_bar, btn_expand}), [=] {
+    if (!expanded) {
+      return hbox({
+        text(" Mask: 0x" + MaskHex(mask)) | dim,
+        text("  "),
+        btn_expand->Render(),
+      });
+    }
+    uint8_t old = mask;
+    mask = 0;
+    for (int i = 0; i < 8; i++) if (bits_[i]) mask |= (1 << i);
+    if (mask != old && on_change_) on_change_(mask);
+    return window(text(" DTC Status Mask "),
+      vbox({check_list->Render(), separator(), btn_bar->Render()}));
+  }) | CatchEvent([this, build, reset_bits](Event event) {
+    if (!expanded) return false;
+    if (event == Event::Character('a')) {
+      for (int i = 0; i < 8; i++) bits_[i] = true;
+      build();
+      return true;
+    }
+    if (event == Event::Character('r')) {
+      for (int i = 0; i < 8; i++) bits_[i] = !bits_[i];
+      build();
+      return true;
+    }
+    if (event == Event::Character('m') || event == Event::Escape) {
+      reset_bits();
+      expanded = false;
       return true;
     }
     return false;
-  }
-
-  if (event == Event::Character('j') || event == Event::ArrowDown)
-    { cursor = (cursor + 1) % 8; return true; }
-  if (event == Event::Character('k') || event == Event::ArrowUp)
-    { cursor = (cursor + 7) % 8; return true; }
-  if (event == Event::Character(' ')) {
-    mask ^= (uint8_t)(1 << cursor);
-    return true;
-  }
-  if (event == Event::Return) {
-    mask_out = mask;
-    expanded = false;
-    return true;
-  }
-  if (event == Event::Character('r')) {
-    mask ^= 0xFF;
-    return true;
-  }
-  if (event == Event::Character('a')) {
-    mask = 0xFF;
-    return true;
-  }
-  if (event == Event::Character('m') || event == Event::Escape) {
-    expanded = false;
-    return true;
-  }
-  return false;
+  });
 }
