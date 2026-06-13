@@ -29,6 +29,10 @@ cmake --build build -j$(nproc)
 
 # 本地 DoIP 测试服务器（端口 13400）
 ./build/test-doip-server
+
+# E2E 测试（需要 Node.js）
+npm install
+npm test
 ```
 
 ### 依赖（自动拉取）
@@ -91,6 +95,23 @@ tools/
 
 - `did_database.json` — DID 定义（名称、描述、数据大小、可图表化标志、轮询间隔）
 - `dtc_database.json` — DTC 码到可读名称/描述的映射
+
+## E2E 测试
+
+端到端 TUI 测试使用 [microsoft/tui-test](https://github.com/microsoft/tui-test)，在真实终端中启动 `fuse-diag` 并模拟按键操作。测试针对本地 `test-doip-server` 实例运行。
+
+```bash
+# 安装测试依赖（仅需一次）
+npm install
+
+# 运行全部 E2E 测试
+npm test
+
+# 仅运行 DTC 页面测试
+npm run test:dtc
+```
+
+测试文件位于 `tests/e2e/`，使用 TypeScript 编写，API 为 `test.describe` / `test` / `expect`。
 
 ## 常见问题
 
