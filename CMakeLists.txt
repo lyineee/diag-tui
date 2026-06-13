@@ -14,116 +14,93 @@ endif()
 include(FetchContent)
 
 # ── Dependencies ──────────────────────────────────────────────────
-# Try find_package first; fall back to FetchContent if not found.
+# Prefer system-installed libraries; fall back to FetchContent.
 
-macro(fetch_or_find name)
-  cmake_parse_arguments(_ARG "" "TAG;TARGET" "REPO;COMPONENTS" ${ARGN})
-  if(NOT _ARG_TARGET)
-    set(_ARG_TARGET "${name}")
-  endif()
-  if(TARGET ${_ARG_TARGET})
-    return()
-  endif()
-  find_package(${name} QUIET)
-  if(TARGET ${_ARG_TARGET})
-    return()
-  endif()
-  FetchContent_Declare(
-    ${name}
-    GIT_REPOSITORY ${_ARG_REPO}
-    GIT_TAG ${_ARG_TAG}
-  )
-  FetchContent_MakeAvailable(${name})
-  if(NOT TARGET ${_ARG_TARGET})
-    message(FATAL_ERROR "FetchContent for ${name} did not provide target ${_ARG_TARGET}")
-  endif()
-endmacro()
+find_package(ftxui QUIET)
+if(NOT ftxui_FOUND)
+  FetchContent_Declare(ftxui GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI.git GIT_TAG v5.0.0)
+  FetchContent_MakeAvailable(ftxui)
+endif()
 
-fetch_or_find(ftxui
-  REPO https://github.com/ArthurSonzogni/FTXUI.git
-  TAG v5.0.0
-  TARGET ftxui::screen
-)
+find_package(doip-lib QUIET)
+if(NOT doip-lib_FOUND)
+  FetchContent_Declare(doip-lib GIT_REPOSITORY https://github.com/langroodi/DoIP-Lib.git GIT_TAG master)
+  FetchContent_MakeAvailable(doip-lib)
+endif()
 
-fetch_or_find(doip-lib
-  REPO https://github.com/langroodi/DoIP-Lib.git
-  TAG master
-  TARGET doip_lib
-)
+find_package(nlohmann_json QUIET)
+if(NOT nlohmann_json_FOUND)
+  FetchContent_Declare(nlohmann_json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG v3.11.3)
+  FetchContent_MakeAvailable(nlohmann_json)
+endif()
 
-fetch_or_find(nlohmann_json
-  REPO https://github.com/nlohmann/json.git
-  TAG v3.11.3
-  TARGET nlohmann_json::nlohmann_json
-)
-
-fetch_or_find(spdlog
-  REPO https://github.com/gabime/spdlog.git
-  TAG v1.13.0
-  TARGET spdlog::spdlog
-)
+find_package(spdlog QUIET)
+if(NOT spdlog_FOUND)
+  FetchContent_Declare(spdlog GIT_REPOSITORY https://github.com/gabime/spdlog.git GIT_TAG v1.13.0)
+  FetchContent_MakeAvailable(spdlog)
+endif()
 
 if(BUILD_TESTING)
-  fetch_or_find(GTest
-    REPO https://github.com/google/googletest.git
-    TAG v1.14.0
-    TARGET GTest::gtest
+  find_package(GTest QUIET)
+  if(NOT GTest_FOUND)
+    FetchContent_Declare(googletest GIT_REPOSITORY https://github.com/google/googletest.git GIT_TAG v1.14.0)
+    FetchContent_MakeAvailable(googletest)
+  endif()
+endif()
+
+# uds-c / isotp-c / bitfield-c
+find_package(uds-c QUIET)
+if(NOT uds-c_FOUND)
+  FetchContent_Declare(uds-c GIT_REPOSITORY https://github.com/openxc/uds-c.git GIT_TAG master)
+  FetchContent_GetProperties(uds-c)
+  if(NOT uds-c_POPULATED)
+    FetchContent_Populate(uds-c)
+  endif()
+endif()
+
+find_package(isotp-c QUIET)
+if(NOT isotp-c_FOUND)
+  FetchContent_Declare(isotp-c GIT_REPOSITORY https://github.com/openxc/isotp-c.git GIT_TAG master)
+  FetchContent_GetProperties(isotp-c)
+  if(NOT isotp-c_POPULATED)
+    FetchContent_Populate(isotp-c)
+  endif()
+endif()
+
+find_package(bitfield-c QUIET)
+if(NOT bitfield-c_FOUND)
+  FetchContent_Declare(bitfield-c GIT_REPOSITORY https://github.com/openxc/bitfield-c.git GIT_TAG master)
+  FetchContent_GetProperties(bitfield-c)
+  if(NOT bitfield-c_POPULATED)
+    FetchContent_Populate(bitfield-c)
+  endif()
+endif()
+
+if(TARGET uds-c)
+  set(UDS_C_INCLUDE)
+  set(UDS_C_SOURCES)
+else()
+  set(UDS_C_INCLUDE
+    ${uds-c_SOURCE_DIR}/src
+    ${isotp-c_SOURCE_DIR}/src
+    ${bitfield-c_SOURCE_DIR}/src
   )
+  set(UDS_C_SOURCES
+    ${uds-c_SOURCE_DIR}/src/uds/uds.c
+    ${isotp-c_SOURCE_DIR}/src/isotp/isotp.c
+    ${isotp-c_SOURCE_DIR}/src/isotp/send.c
+    ${isotp-c_SOURCE_DIR}/src/isotp/receive.c
+    ${isotp-c_SOURCE_DIR}/src/isotp/allocate.c
+    ${bitfield-c_SOURCE_DIR}/src/bitfield/bitfield.c
+    ${bitfield-c_SOURCE_DIR}/src/bitfield/8byte.c
+    ${bitfield-c_SOURCE_DIR}/src/bitfield/bitarray.c
+    ${bitfield-c_SOURCE_DIR}/src/canutil/read.c
+    ${bitfield-c_SOURCE_DIR}/src/canutil/write.c
+  )
+  add_library(uds-c STATIC ${UDS_C_SOURCES})
+  target_include_directories(uds-c PUBLIC ${UDS_C_INCLUDE})
+  set_target_properties(uds-c PROPERTIES LINKER_LANGUAGE C)
 endif()
-
-# uds-c / isotp-c / bitfield-c (not commonly installed system-wide, always fetch)
-FetchContent_Declare(
-  uds-c
-  GIT_REPOSITORY https://github.com/openxc/uds-c.git
-  GIT_TAG master
-)
-FetchContent_GetProperties(uds-c)
-if(NOT uds-c_POPULATED)
-  FetchContent_Populate(uds-c)
-endif()
-
-FetchContent_Declare(
-  isotp-c
-  GIT_REPOSITORY https://github.com/openxc/isotp-c.git
-  GIT_TAG master
-)
-FetchContent_GetProperties(isotp-c)
-if(NOT isotp-c_POPULATED)
-  FetchContent_Populate(isotp-c)
-endif()
-
-FetchContent_Declare(
-  bitfield-c
-  GIT_REPOSITORY https://github.com/openxc/bitfield-c.git
-  GIT_TAG master
-)
-FetchContent_GetProperties(bitfield-c)
-if(NOT bitfield-c_POPULATED)
-  FetchContent_Populate(bitfield-c)
-endif()
-
-set(UDS_C_INCLUDE
-  ${uds-c_SOURCE_DIR}/src
-  ${isotp-c_SOURCE_DIR}/src
-  ${bitfield-c_SOURCE_DIR}/src
-)
-
-set(UDS_C_SOURCES
-  ${uds-c_SOURCE_DIR}/src/uds/uds.c
-  ${isotp-c_SOURCE_DIR}/src/isotp/isotp.c
-  ${isotp-c_SOURCE_DIR}/src/isotp/send.c
-  ${isotp-c_SOURCE_DIR}/src/isotp/receive.c
-  ${isotp-c_SOURCE_DIR}/src/isotp/allocate.c
-  ${bitfield-c_SOURCE_DIR}/src/bitfield/bitfield.c
-  ${bitfield-c_SOURCE_DIR}/src/bitfield/8byte.c
-  ${bitfield-c_SOURCE_DIR}/src/bitfield/bitarray.c
-  ${bitfield-c_SOURCE_DIR}/src/canutil/read.c
-  ${bitfield-c_SOURCE_DIR}/src/canutil/write.c
-)
-
-add_library(uds-c STATIC ${UDS_C_SOURCES})
-target_include_directories(uds-c PUBLIC ${UDS_C_INCLUDE})
-set_target_properties(uds-c PROPERTIES LINKER_LANGUAGE C)
 
 find_package(Threads REQUIRED)
 
