@@ -114,11 +114,39 @@ void App::OnUdsResponse(const DiagResponse& resp) {
   state_.last_raw_response = resp.payload;
 
   bool did_updated = false;
+  bool dtc_updated = false;
 
   if (resp.success) {
     if (resp.mode == 0x19) {
-      state_.status_message = "Read DTC response (" + std::to_string(resp.payload.size()) + " bytes)";
+      dtc_updated = true;
       state_.last_dtc_response = resp.payload;
+
+      if (resp.payload.size() >= 4 && resp.payload[0] == 0x01) {
+        size_t i = 1;
+        if (i < resp.payload.size()) i++;
+        if (i + 3 <= resp.payload.size()) {
+          state_.dtc_count = ((uint32_t)resp.payload[i] << 16) |
+                             ((uint32_t)resp.payload[i+1] << 8) |
+                             resp.payload[i+2];
+        }
+        state_.status_message = std::to_string(state_.dtc_count) + " DTC(s) counted";
+      } else {
+        state_.dtc_list.clear();
+        size_t off = 0;
+        if (off < resp.payload.size() && resp.payload[off] == 0x02) off++;
+        if (off < resp.payload.size()) off++;
+
+        while (off + 3 <= resp.payload.size()) {
+          DtcInfo dtc;
+          dtc.dtc_number = ((uint32_t)resp.payload[off] << 16) |
+                           ((uint32_t)resp.payload[off+1] << 8) |
+                           resp.payload[off+2];
+          dtc.status = (off + 3 < resp.payload.size()) ? resp.payload[off+3] : 0;
+          off += (off + 4 <= resp.payload.size()) ? 4 : 3;
+          state_.dtc_list.push_back(dtc);
+        }
+        state_.status_message = "Read " + std::to_string(state_.dtc_list.size()) + " DTC(s)";
+      }
     } else if (resp.mode == 0x22) {
       did_updated = true;
       state_.status_message = "DID read successful";
@@ -186,7 +214,7 @@ void App::OnUdsResponse(const DiagResponse& resp) {
     state_.raw_response_text = ss.str();
   }
 
-  if (did_updated && screen_) {
+  if ((did_updated || dtc_updated) && screen_) {
     screen_->PostEvent(ftxui::Event::Custom);
   }
 
@@ -212,7 +240,13 @@ void App::SetTargetAddress(uint16_t addr) {
 }
 
 void App::ReadDtc() {
-  uds_->ReadDtcByStatusMask(0xFF);
+  std::lock_guard<std::recursive_mutex> lock(state_.mtx);
+  uds_->ReadDtcByStatusMask(state_.dtc_status_mask);
+}
+
+void App::ReadDtcCount() {
+  std::lock_guard<std::recursive_mutex> lock(state_.mtx);
+  uds_->ReportNumberOfDTCByStatusMask(state_.dtc_status_mask);
 }
 
 void App::ClearDtc() {

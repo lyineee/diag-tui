@@ -1,8 +1,20 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <vector>
+
+namespace DtcStatus {
+constexpr uint8_t testFailed                        = 0x01;
+constexpr uint8_t testFailedThisOperationCycle      = 0x02;
+constexpr uint8_t pendingDTC                        = 0x04;
+constexpr uint8_t confirmedDTC                      = 0x08;
+constexpr uint8_t testNotCompletedSinceLastClear    = 0x10;
+constexpr uint8_t testFailedSinceLastClear          = 0x20;
+constexpr uint8_t testNotCompletedThisOperationCycle = 0x40;
+constexpr uint8_t warningIndicatorRequested         = 0x80;
+}
 
 #define MAX_UDS_REQUEST_PAYLOAD_LENGTH 127
 
@@ -72,6 +84,14 @@ struct DtcInfo {
   uint32_t dtc_number{0};
   uint8_t status{0};
   std::vector<uint8_t> snapshot_data;
+
+  std::string CodeStr() const {
+    uint8_t fb = (dtc_number >> 16) & 0xFF;
+    uint16_t rest = dtc_number & 0xFFFF;
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%c%04X", "PCBU"[(fb >> 4) & 3], rest);
+    return std::string(buf);
+  }
 };
 
 struct UdsResponse {

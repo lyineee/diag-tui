@@ -103,83 +103,136 @@ std::vector<uint8_t> BuildUdsResponse(const std::vector<uint8_t>& request) {
     }
 
     case 0x19: { // ReadDTCInformation
-      if (req.pid == 0x02) {
-        if (g_dtc_cleared) {
-          std::vector<uint8_t> empty_resp = {0x59, 0x02, 0x00};
-          return empty_resp;
+      uint8_t sub = (uint8_t)req.pid;
+      uint8_t mask = (req.payload_length > 1) ? req.payload[1] : 0xFF;
+
+      // Apply mask filter: only return DTCs matching the status mask
+      auto matches_mask = [mask](uint8_t status) -> bool {
+        if (mask == 0xFF) return true;     // report all
+        if (mask == 0x00) return status == 0; // report none (or status==0)
+        return (status & mask) != 0;       // any matching bit
+      };
+
+      struct DtcEntry { uint8_t b1, b2, b3; };
+      static const DtcEntry dtc_pool[] = {
+        {0x80, 0x03, 0x01},  {0x80, 0x03, 0x00},  {0x80, 0x01, 0x01},
+        {0x80, 0x42, 0x00},  {0x80, 0x50, 0x00},  {0x80, 0x62, 0x0F},
+        {0x42, 0x01, 0x01},  {0x80, 0x68, 0x05},  {0x80, 0x60, 0x06},
+        {0x80, 0x56, 0x02},  {0x42, 0x12, 0x01},  {0x80, 0x44, 0x02},
+        {0x80, 0x45, 0x05},  {0x42, 0x10, 0x01},  {0x80, 0x21, 0x01},
+        {0x80, 0x50, 0x05},  {0x80, 0x11, 0x03},  {0x80, 0x11, 0x07},
+        {0x80, 0x11, 0x08},
+      };
+      static const int dtc_total = sizeof(dtc_pool) / sizeof(dtc_pool[0]);
+      static int dtc_phase = 0;
+      dtc_phase++;
+
+      auto dtc_status = [](int idx, bool always_active) -> uint8_t {
+        static int ph = 0; ph++;
+        uint8_t s = 0;
+        if (always_active) {
+          s = 0x01 | 0x08 | 0x10;  // testFailed + confirmed + testNotSinceClear
+        } else {
+          int c = (ph + idx * 3) % 12;
+          if (c < 6) s |= 0x01 | 0x08;      // testFailed + confirmed
+          if (c < 3 || (c >= 6 && c < 9)) s |= 0x20; // testFailedSinceClear
+          if (c % 4 == 1 || c % 4 == 2) s |= 0x04;   // pendingDTC
+          s |= 0x10;  // testNotSinceClear
         }
-        // ReadDTCByStatusMask - return DTCs with dynamic status
-        // each DTC: 3 bytes number + 1 byte status
-        static int dtc_phase = 0;
-        dtc_phase++;
+        return s;
+      };
 
-        // Build DTC list with some dynamic status changes
-        struct DtcDef { uint8_t b1, b2, b3; };
-        static const DtcDef dtc_pool[] = {
-          {0x80, 0x03, 0x01},  // P0301 - Cylinder 1 Misfire
-          {0x80, 0x03, 0x00},  // P0300 - Random/Multiple Misfire
-          {0x80, 0x01, 0x01},  // P0101 - MAF Circuit
-          {0x80, 0x42, 0x00},  // P0420 - Catalyst Efficiency
-          {0x80, 0x50, 0x00},  // P0500 - VSS Circuit
-          {0x80, 0x62, 0x0F},  // P062F - EEPROM Error
-          {0x42, 0x01, 0x01},  // C0101 - ABS Lost Comm
-          {0x80, 0x68, 0x05},  // P0685 - ECM Relay
-          {0x80, 0x60, 0x06},  // P0606 - ECM Processor
-          {0x80, 0x56, 0x02},  // P0562 - System Voltage Low
-          {0x42, 0x12, 0x01},  // C0121 - ABS Range/Perf
-          {0x80, 0x44, 0x02},  // P0442 - EVAP Small Leak
-          {0x80, 0x45, 0x05},  // P0455 - EVAP Large Leak
-          {0x42, 0x10, 0x01},  // U0101 - Lost Comm TCM
-          {0x80, 0x21, 0x01},  // P2101 - Throttle Actuator
-          {0x80, 0x50, 0x05},  // P0505 - Idle Control
-          {0x80, 0x11, 0x03},  // P0113 - IAT Circuit High
-          {0x80, 0x11, 0x07},  // P0117 - ECT Circuit Low
-          {0x80, 0x11, 0x08},  // P0118 - ECT Circuit High
-        };
-        static const int dtc_count = sizeof(dtc_pool) / sizeof(dtc_pool[0]);
+      // Filter DTCs by mask
+      uint8_t statuses[dtc_total];
+      int filtered[dtc_total];
+      int filtered_count = 0;
+      for (int i = 0; i < dtc_total; i++) {
+        bool always = (i < 3);
+        statuses[i] = dtc_status(i, always);
+        if (matches_mask(statuses[i])) filtered[filtered_count++] = i;
+      }
 
-        // Status byte builder with dynamic bits
-        auto dtc_status = [dtc_phase](int idx, bool always_active) -> uint8_t {
-          uint8_t s = 0;
-          if (always_active) {
-            s |= 0x01;  // testFailed
-            s |= 0x08;  // confirmed
-            s |= 0x10;  // testNotSinceClear
-          } else {
-            // Intermittent faults: cycle through states
-            int cycle = (dtc_phase + idx * 3) % 12;
-            if (cycle < 6) {
-              s |= 0x01;  // testFailed
-              s |= 0x08;  // confirmed
-            }
-            if (cycle < 3 || (cycle >= 6 && cycle < 9)) {
-              s |= 0x20;  // testFailedThisCycle
-            }
-            if (cycle % 4 == 1 || cycle % 4 == 2) {
-              s |= 0x04;  // pending
-            }
-            s |= 0x10;  // testNotSinceClear
-          }
-          return s;
-        };
-
-        // Build response: [0x59, 0x02, count, DTC_data...]
-        uint8_t count = dtc_count;
-        std::vector<uint8_t> resp;
-        resp.push_back(0x59);
-        resp.push_back(0x02);
-        resp.push_back(count);
-        for (int i = 0; i < dtc_count; i++) {
-          bool always_on = (i < 3);  // first 3 always active
+      // Build filtered DTC list
+      auto build_dtc_list = [&](std::vector<uint8_t>& resp) {
+        for (int j = 0; j < filtered_count; j++) {
+          int i = filtered[j];
           resp.push_back(dtc_pool[i].b1);
           resp.push_back(dtc_pool[i].b2);
           resp.push_back(dtc_pool[i].b3);
-          resp.push_back(dtc_status(i, always_on));
+          resp.push_back(statuses[i]);
         }
-        std::cout << "  ReadDTC: " << dtc_count << " DTCs (phase=" << dtc_phase << ")" << std::endl;
-        return resp;
+      };
+
+      std::vector<uint8_t> resp;
+      resp.push_back(0x59);
+      resp.push_back(sub);
+      resp.push_back(0x00);  // DTCStatusAvailabilityMask
+
+      switch (sub) {
+        case 0x01: { // ReportNumberOfDTCByStatusMask
+          resp.push_back(0x00);                      // DTCFormatIdentifier
+          resp.push_back((filtered_count >> 8) & 0xFF); // count high
+          resp.push_back(filtered_count & 0xFF);      // count low
+          std::cout << "  DTC count by mask 0x" << std::hex << (int)mask << std::dec
+                    << ": " << filtered_count << std::endl;
+          return resp;
+        }
+        case 0x02: { // ReportDTCByStatusMask
+          if (g_dtc_cleared) {
+            return std::vector<uint8_t>{0x59, 0x02, 0x00};
+          }
+          build_dtc_list(resp);
+          std::cout << "  DTC by mask 0x" << std::hex << (int)mask << std::dec
+                    << ": " << filtered_count << " DTCs" << std::endl;
+          return resp;
+        }
+        case 0x04: { // ReportDTCSnapshotIdentification
+          build_dtc_list(resp);
+          for (int j = 0; j < filtered_count; j++) {
+            resp.push_back(0x00);  // no snapshot records
+          }
+          std::cout << "  DTC snapshot IDs: " << filtered_count << " DTCs" << std::endl;
+          return resp;
+        }
+        case 0x06: { // ReportDTCSnapshotRecordByDTCNumber
+          // Request: [0x19, 0x06, DTC_high, DTC_mid, DTC_low, snapshot_number]
+          uint32_t req_dtc = ((uint32_t)req.payload[0] << 16) |
+                             ((uint32_t)req.payload[1] << 8) |
+                             req.payload[2];
+          uint8_t snap_num = (req.payload_length > 3) ? req.payload[3] : 0x01;
+          // Find the matching DTC
+          for (int i = 0; i < dtc_total; i++) {
+            uint32_t code = ((uint32_t)dtc_pool[i].b1 << 16) |
+                            ((uint32_t)dtc_pool[i].b2 << 8) |
+                            dtc_pool[i].b3;
+            if (code == req_dtc) {
+              resp.push_back(dtc_pool[i].b1);
+              resp.push_back(dtc_pool[i].b2);
+              resp.push_back(dtc_pool[i].b3);
+              resp.push_back(dtc_status(i, false));
+              resp.push_back(snap_num);
+              // Simulated snapshot data (8 bytes)
+              for (int k = 0; k < 8; k++) resp.push_back((uint8_t)(k * 16 + snap_num));
+              std::cout << "  DTC snapshot rec " << std::hex << req_dtc << std::dec
+                        << " #" << (int)snap_num << std::endl;
+              return resp;
+            }
+          }
+          return UdsMessage::BuildNegativeResponse(sid, NRC_REQUEST_OUT_OF_RANGE);
+        }
+        case 0x0A: { // ReportSupportedDTC
+          for (int i = 0; i < dtc_total; i++) {
+            resp.push_back(dtc_pool[i].b1);
+            resp.push_back(dtc_pool[i].b2);
+            resp.push_back(dtc_pool[i].b3);
+            resp.push_back(dtc_status(i, true));
+          }
+          std::cout << "  Supported DTCs: " << dtc_total << std::endl;
+          return resp;
+        }
+        default:
+          return UdsMessage::BuildNegativeResponse(sid, NRC_SUB_FUNCTION_NOT_SUPPORTED);
       }
-      return UdsMessage::BuildNegativeResponse(sid, NRC_SUB_FUNCTION_NOT_SUPPORTED);
     }
 
     case 0x14: { // ClearDiagnosticInformation

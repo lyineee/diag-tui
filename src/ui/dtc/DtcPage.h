@@ -1,8 +1,8 @@
 #pragma once
 
 #include "app/App.h"
+#include "ui/dtc/DtcListPanel.h"
 #include <ftxui/component/component.hpp>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,6 +14,8 @@ public:
 
 private:
   App& app_;
+  DtcListPanel list_panel_;
   ftxui::Component renderer_;
-  int selected_index_{0};
+  std::vector<std::string> tabs_;
+  int tab_selected_{0};
 };

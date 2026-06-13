@@ -21,6 +21,8 @@ public:
 
   void ReadDtcByStatusMask(uint8_t status_mask,
                            UdsResponseCallback cb = nullptr);
+  void ReportNumberOfDTCByStatusMask(uint8_t status_mask,
+                                     UdsResponseCallback cb = nullptr);
   void ClearDiagnosticInformation(uint16_t group = 0xFFFF,
                                   UdsResponseCallback cb = nullptr);
 

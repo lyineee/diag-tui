@@ -57,7 +57,9 @@ set(SOURCES
   src/app/App.cpp
   src/ui/StatusBar.cpp
   src/ui/NavBar.cpp
-  src/ui/DtcPage.cpp
+  src/ui/dtc/DtcPage.cpp
+  src/ui/dtc/DtcListPanel.cpp
+  src/ui/dtc/DtcMaskFilter.cpp
   src/ui/DidPage.cpp
   src/ui/RawPage.cpp
   src/ui/SessionManager.cpp

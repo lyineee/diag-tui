@@ -36,6 +36,9 @@ struct AppState {
   std::vector<uint8_t> last_did_response;
   uint16_t last_did_read{0};
   std::vector<uint8_t> last_dtc_response;
+  std::vector<DtcInfo> dtc_list;
+  uint32_t dtc_count{0};
+  uint8_t dtc_status_mask{0xFF};
   uint16_t last_manual_did_read{0};
   std::vector<uint8_t> last_manual_did_response;
   std::vector<EcuInfo> discovered_ecus;
@@ -67,6 +70,7 @@ public:
   void ConnectWithConfig();
 
   void ReadDtc();
+  void ReadDtcCount();
   void ClearDtc();
   void ReadDid(uint16_t did);
   void ReadDidManual(uint16_t did);

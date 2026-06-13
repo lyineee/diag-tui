@@ -40,6 +40,13 @@ void UdsClient::ReadDtcByStatusMask(uint8_t status_mask,
   SendRequest(req, std::move(cb));
 }
 
+void UdsClient::ReportNumberOfDTCByStatusMask(uint8_t status_mask,
+                                               UdsResponseCallback cb) {
+  uint8_t payload[] = {0x00, status_mask};
+  auto req = UdsMessage::MakeRequest(0x19, 0x01, true, 1, payload, 2);
+  SendRequest(req, std::move(cb));
+}
+
 void UdsClient::ClearDiagnosticInformation(uint16_t group,
                                             UdsResponseCallback cb) {
   uint8_t payload[] = {(uint8_t)(group >> 8), (uint8_t)(group & 0xFF)};

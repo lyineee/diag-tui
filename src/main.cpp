@@ -1,7 +1,7 @@
 #include "app/App.h"
 #include "ui/StatusBar.h"
 #include "ui/NavBar.h"
-#include "ui/DtcPage.h"
+#include "ui/dtc/DtcPage.h"
 #include "ui/DidPage.h"
 #include "ui/RawPage.h"
 #include "ui/SessionManager.h"
