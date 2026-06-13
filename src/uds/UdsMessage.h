@@ -1,7 +1,6 @@
 #pragma once
 
 #include "uds/UdsTypes.h"
-#include <uds/uds_types.h>
 #include <string>
 #include <vector>
 

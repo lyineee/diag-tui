@@ -81,10 +81,10 @@ DiagResponse UdsMessage::ParseResponse(const std::vector<uint8_t>& raw) {
 
   uint8_t first = raw[0];
 
-  if (first == 0x7F && raw.size() >= 3) {
+  if (first == 0x7F) {
     resp.success = false;
-    resp.mode = raw[1];
-    resp.nrc = (DiagnosticNegativeResponseCode)raw[2];
+    if (raw.size() >= 2) resp.mode = raw[1];
+    if (raw.size() >= 3) resp.nrc = (DiagnosticNegativeResponseCode)raw[2];
     return resp;
   }
 

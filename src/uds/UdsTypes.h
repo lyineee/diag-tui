@@ -1,9 +1,51 @@
 #pragma once
 
-#include <uds/uds_types.h>
 #include <cstdint>
 #include <string>
 #include <vector>
+
+#define MAX_UDS_REQUEST_PAYLOAD_LENGTH 127
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum {
+    DIAGNOSTIC_REQUEST_TYPE_PID,
+    DIAGNOSTIC_REQUEST_TYPE_DTC,
+    DIAGNOSTIC_REQUEST_TYPE_MIL_STATUS,
+    DIAGNOSTIC_REQUEST_TYPE_VIN
+} DiagnosticRequestType;
+
+typedef struct {
+    uint32_t arbitration_id;
+    uint8_t mode;
+    bool has_pid;
+    uint16_t pid;
+    uint8_t pid_length;
+    uint8_t payload[MAX_UDS_REQUEST_PAYLOAD_LENGTH];
+    uint8_t payload_length;
+    bool no_frame_padding;
+    DiagnosticRequestType type;
+} DiagnosticRequest;
+
+typedef enum {
+    NRC_SUCCESS = 0x0,
+    NRC_SERVICE_NOT_SUPPORTED = 0x11,
+    NRC_SUB_FUNCTION_NOT_SUPPORTED = 0x12,
+    NRC_INCORRECT_LENGTH_OR_FORMAT = 0x13,
+    NRC_CONDITIONS_NOT_CORRECT = 0x22,
+    NRC_REQUEST_OUT_OF_RANGE = 0x31,
+    NRC_SECURITY_ACCESS_DENIED = 0x33,
+    NRC_INVALID_KEY = 0x35,
+    NRC_TOO_MANY_ATTEMPS = 0x36,
+    NRC_TIME_DELAY_NOT_EXPIRED = 0x37,
+    NRC_RESPONSE_PENDING = 0x78
+} DiagnosticNegativeResponseCode;
+
+#ifdef __cplusplus
+}
+#endif
 
 enum class DiagnosticSession : uint8_t {
   Default = 0x01,

@@ -48,60 +48,6 @@ if(BUILD_TESTING)
   endif()
 endif()
 
-# uds-c / isotp-c / bitfield-c
-find_package(uds-c QUIET)
-if(NOT uds-c_FOUND)
-  FetchContent_Declare(uds-c GIT_REPOSITORY https://github.com/openxc/uds-c.git GIT_TAG master)
-  FetchContent_GetProperties(uds-c)
-  if(NOT uds-c_POPULATED)
-    FetchContent_Populate(uds-c)
-  endif()
-endif()
-
-find_package(isotp-c QUIET)
-if(NOT isotp-c_FOUND)
-  FetchContent_Declare(isotp-c GIT_REPOSITORY https://github.com/openxc/isotp-c.git GIT_TAG master)
-  FetchContent_GetProperties(isotp-c)
-  if(NOT isotp-c_POPULATED)
-    FetchContent_Populate(isotp-c)
-  endif()
-endif()
-
-find_package(bitfield-c QUIET)
-if(NOT bitfield-c_FOUND)
-  FetchContent_Declare(bitfield-c GIT_REPOSITORY https://github.com/openxc/bitfield-c.git GIT_TAG master)
-  FetchContent_GetProperties(bitfield-c)
-  if(NOT bitfield-c_POPULATED)
-    FetchContent_Populate(bitfield-c)
-  endif()
-endif()
-
-if(TARGET uds-c)
-  set(UDS_C_INCLUDE)
-  set(UDS_C_SOURCES)
-else()
-  set(UDS_C_INCLUDE
-    ${uds-c_SOURCE_DIR}/src
-    ${isotp-c_SOURCE_DIR}/src
-    ${bitfield-c_SOURCE_DIR}/src
-  )
-  set(UDS_C_SOURCES
-    ${uds-c_SOURCE_DIR}/src/uds/uds.c
-    ${isotp-c_SOURCE_DIR}/src/isotp/isotp.c
-    ${isotp-c_SOURCE_DIR}/src/isotp/send.c
-    ${isotp-c_SOURCE_DIR}/src/isotp/receive.c
-    ${isotp-c_SOURCE_DIR}/src/isotp/allocate.c
-    ${bitfield-c_SOURCE_DIR}/src/bitfield/bitfield.c
-    ${bitfield-c_SOURCE_DIR}/src/bitfield/8byte.c
-    ${bitfield-c_SOURCE_DIR}/src/bitfield/bitarray.c
-    ${bitfield-c_SOURCE_DIR}/src/canutil/read.c
-    ${bitfield-c_SOURCE_DIR}/src/canutil/write.c
-  )
-  add_library(uds-c STATIC ${UDS_C_SOURCES})
-  target_include_directories(uds-c PUBLIC ${UDS_C_INCLUDE})
-  set_target_properties(uds-c PROPERTIES LINKER_LANGUAGE C)
-endif()
-
 find_package(Threads REQUIRED)
 
 # ── Sources ────────────────────────────────────────────────────────
@@ -135,7 +81,6 @@ target_link_libraries(fuse-diag PRIVATE
   ftxui::dom
   ftxui::component
   doip_lib
-  uds-c
   nlohmann_json::nlohmann_json
   spdlog::spdlog
   Threads::Threads
@@ -154,7 +99,7 @@ add_executable(test-doip-server
   tools/test_server.cpp
   src/uds/UdsMessage.cpp
 )
-target_link_libraries(test-doip-server PRIVATE doip_lib uds-c)
+target_link_libraries(test-doip-server PRIVATE doip_lib)
 target_include_directories(test-doip-server PRIVATE
   ${CMAKE_SOURCE_DIR}/src
 )
