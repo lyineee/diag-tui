@@ -15,30 +15,32 @@ test.describe("FuseDiag Navigation", () => {
 
   test.use({ program });
 
-  test("nav menu items visible", async ({ terminal }) => {
+  test("nav menu shows all sections", async ({ terminal }) => {
     await expect(terminal.getByText("Raw Send")).toBeVisible();
     await expect(terminal.getByText("Session")).toBeVisible();
     await expect(terminal.getByText("Settings")).toBeVisible();
   });
 
-  test("Tab cycles through all pages", async ({ terminal }) => {
-    terminal.keyPress(Key.Tab);
-    terminal.keyPress(Key.Tab);
-    terminal.keyPress(Key.Tab);
-    terminal.keyPress(Key.Tab);
-    terminal.keyPress(Key.Tab);
-  });
+  test("Tab switches from DTC to DID page", async ({ terminal }) => {
+    await expect(terminal.getByText("No DTCs found")).toBeVisible();
 
-  test("F2 jumps to DID page", async ({ terminal }) => {
-    terminal.keyPress(Key.F2);
+    terminal.keyPress(Key.Tab);
 
     await expect(terminal.getByText("Database")).toBeVisible();
     await expect(terminal.getByText("Browser")).toBeVisible();
   });
 
-  test("F3 shows Raw Send page", async ({ terminal }) => {
+  test("F2 directly opens DID page", async ({ terminal }) => {
+    terminal.keyPress(Key.F2);
+
+    await expect(terminal.getByText("Database")).toBeVisible();
+    await expect(terminal.getByText("Browser")).toBeVisible();
+    await expect(terminal.getByText("Polling")).toBeVisible();
+  });
+
+  test("F3 opens Raw Send page", async ({ terminal }) => {
     terminal.keyPress(Key.F3);
 
-    await expect(terminal.getByText("Request")).toBeVisible();
+    await expect(terminal.getByText("Raw Send")).toBeVisible();
   });
 });

@@ -15,28 +15,21 @@ test.describe("FuseDiag DTC Page", () => {
 
   test.use({ program });
 
-  test("shows disconnected UI on startup", async ({ terminal }) => {
+  test("shows disconnected UI with mask bar, buttons, detail panel", async ({ terminal }) => {
     await expect(terminal.getByText("Disconnected")).toBeVisible();
     await expect(terminal.getByText("Configure (m)")).toBeVisible();
     await expect(terminal.getByText("Refresh (F5)")).toBeVisible();
+    await expect(terminal.getByText("Clear (F6)")).toBeVisible();
+    await expect(terminal.getByText("No DTCs found")).toBeVisible();
+    await expect(terminal.getByText("Select a DTC from the list")).toBeVisible();
+  });
+
+  test("DTC list shows empty state and navigation works with F5", async ({ terminal }) => {
+    terminal.keyPress(Key.F5);
     await expect(terminal.getByText("No DTCs found")).toBeVisible();
   });
 
-  test("mask opens with m, closes with Escape", async ({ terminal }) => {
-    terminal.keyPress("m");
-    terminal.keyPress(Key.Escape);
-  });
-
-  test("mask shortcuts a, r, and keyboard navigation", async ({ terminal }) => {
-    terminal.keyPress("m");
-    terminal.keyPress("a");
-    terminal.keyPress("r");
-    terminal.keyPress("m");
-  });
-
-  test("F5 refresh and j/k list navigation", async ({ terminal }) => {
-    terminal.keyPress(Key.F5);
-    terminal.keyPress("j");
-    terminal.keyPress("k");
+  test("mask bar contains Configure button", async ({ terminal }) => {
+    await expect(terminal.getByText("Configure (m)")).toBeVisible();
   });
 });

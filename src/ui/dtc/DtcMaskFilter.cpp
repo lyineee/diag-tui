@@ -83,7 +83,10 @@ Component DtcMaskFilter::Build() {
     return window(text(" DTC Status Mask "),
       vbox({check_list->Render(), separator(), btn_bar->Render()}));
   }) | CatchEvent([this, build, reset_bits](Event event) {
-    if (!expanded) return false;
+    if (!expanded) {
+      if (event == Event::Character('m')) { expanded = true; return true; }
+      return false;
+    }
     if (event == Event::Character('a')) {
       for (int i = 0; i < 8; i++) bits_[i] = true;
       build();
