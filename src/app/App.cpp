@@ -343,3 +343,13 @@ void App::SetPollQuery(PollDidQuery query) { poll_query_ = std::move(query); }
 std::shared_ptr<DoipClient> App::GetDoipClient() const { return doip_; }
 std::shared_ptr<UdsClient> App::GetUdsClient() const { return uds_; }
 AppState& App::GetState() { return state_; }
+
+void App::RegisterKeyHandler(KeyHandler handler) {
+  key_handlers_.push_back(std::move(handler));
+}
+
+bool App::HandleGlobalKeys(ftxui::Event event) {
+  for (auto& h : key_handlers_)
+    if (h(event)) return true;
+  return false;
+}

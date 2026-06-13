@@ -12,8 +12,11 @@ public:
   void Refresh();
 
 private:
+  void RegisterGlobalKeys();
   App& app_;
   DtcMaskFilter mask_;
   int selected_{0};
   ftxui::Box list_box_;
+  ftxui::Component container_;
+  ftxui::Component mask_component_;
 };

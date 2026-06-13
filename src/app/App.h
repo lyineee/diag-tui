@@ -11,7 +11,10 @@
 #include <thread>
 #include <vector>
 
-namespace ftxui { class ScreenInteractive; }
+namespace ftxui {
+class ScreenInteractive;
+class Event;
+}
 
 enum class NavPage { Dtc, Did, Raw, Session, Settings, COUNT_ };
 
@@ -23,6 +26,7 @@ struct DidValue {
 };
 
 struct AppState {
+  NavPage current_page{NavPage::Dtc};
   bool connected{false};
   bool routing_ok{false};
   bool connecting{false};
@@ -92,7 +96,12 @@ public:
   std::shared_ptr<UdsClient> GetUdsClient() const;
   AppState& GetState();
 
+  using KeyHandler = std::function<bool(ftxui::Event)>;
+  void RegisterKeyHandler(KeyHandler handler);
+  bool HandleGlobalKeys(ftxui::Event event);
+
 private:
+  std::vector<KeyHandler> key_handlers_;
   void PollingThread();
   void OnDiagnosticMessage(const DoipMessage& msg);
   void OnDiscovery(const std::vector<EcuInfo>& ecus);

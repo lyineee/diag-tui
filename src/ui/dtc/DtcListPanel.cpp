@@ -21,6 +21,7 @@ void DtcListPanel::Refresh() { app_.ReadDtc(); }
 
 Component DtcListPanel::Build() {
   auto mask_component = mask_.Build();
+  mask_component_ = mask_component;
   mask_.OnChange([this](uint8_t m) {
     auto& state = app_.GetState();
     state.dtc_status_mask = m;
@@ -155,5 +156,49 @@ Component DtcListPanel::Build() {
   children.push_back(mask_component);
   children.push_back(list_renderer);
   children.push_back(btn_bar_wrap);
-  return Container::Vertical(std::move(children));
+  container_ = Container::Vertical(std::move(children));
+  container_ |= CatchEvent([this](Event event) {
+    if (!mask_.expanded) return false;
+    if (event == Event::ArrowDown || event == Event::ArrowUp)
+      return mask_component_->OnEvent(event);
+    return false;
+  });
+
+  RegisterGlobalKeys();
+
+  return container_;
+}
+
+void DtcListPanel::RegisterGlobalKeys() {
+  app_.RegisterKeyHandler([this](Event event) {
+    if (app_.GetState().current_page != NavPage::Dtc) return false;
+
+    if (mask_.expanded) {
+      if (event == Event::Character('a')) {
+        mask_.SetAll();
+        auto& state = app_.GetState();
+        state.dtc_status_mask = mask_.mask;
+        return true;
+      }
+      if (event == Event::Character('r')) {
+        mask_.Invert();
+        auto& state = app_.GetState();
+        state.dtc_status_mask = mask_.mask;
+        return true;
+      }
+      if (event == Event::Character('m') || event == Event::Escape) {
+        mask_.expanded = false;
+        return true;
+      }
+      return false;
+    }
+    if (event == Event::Character('m')) {
+      mask_.expanded = true;
+      mask_.FocusFirst();
+      if (container_) container_->SetActiveChild(mask_component_.get());
+      mask_component_->TakeFocus();
+      return true;
+    }
+    return false;
+  });
 }

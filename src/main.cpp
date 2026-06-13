@@ -52,9 +52,11 @@ int main() {
   auto settings_component = settings_page.Build();
 
   NavPage current_page = NavPage::Dtc;
+  app.GetState().current_page = current_page;
 
   nav_bar.SetOnPageChange([&](NavPage page) {
     current_page = page;
+    app.GetState().current_page = page;
   });
 
   auto main_container = Container::Tab(
@@ -89,6 +91,8 @@ int main() {
   });
 
   renderer |= CatchEvent([&](Event event) {
+    if (app.HandleGlobalKeys(event)) return true;
+
     if (event == Event::Escape) {
       app.Disconnect();
       screen.Exit();
@@ -107,17 +111,20 @@ int main() {
 
     if (event == Event::F2) {
       current_page = NavPage::Did;
+      app.GetState().current_page = current_page;
       return true;
     }
 
     if (event == Event::F3) {
       current_page = NavPage::Raw;
+      app.GetState().current_page = current_page;
       return true;
     }
 
     if (event == Event::Tab) {
       int next = ((int)current_page + 1) % (int)NavPage::COUNT_;
       current_page = (NavPage)next;
+      app.GetState().current_page = current_page;
       return true;
     }
 

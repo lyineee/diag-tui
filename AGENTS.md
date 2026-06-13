@@ -236,6 +236,41 @@ Background thread in `App::PollingThread()` periodically calls `ReadDid()` for e
 
 When background data arrives (UDS response, connection status change), call `screen_->PostEvent(ftxui::Event::Custom)` to force an immediate TUI re-render. Without this, the screen only updates on user input.
 
+### Global Key Subscription
+
+For keys that should work regardless of component focus (mask toggle, refresh), use `App::RegisterKeyHandler` instead of local `CatchEvent`. Handlers are checked first in `main.cpp`'s global `CatchEvent`.
+
+**Registration (in component `Build`):**
+```cpp
+app_.RegisterKeyHandler([this](Event event) {
+    if (!mask_.expanded && event == Event::Character('m')) {
+        mask_.expanded = true;  return true;
+    }
+    if (mask_.expanded) {
+        if (event == Event::Character('a')) { mask_.SetAll(); return true; }
+        if (event == Event::Character('r')) { mask_.Invert(); return true; }
+        if (event == Event::Character('m') || event == Event::Escape) {
+            mask_.expanded = false; return true;
+        }
+    }
+    return false;
+});
+```
+
+**Dispatch (in `main.cpp`):**
+```cpp
+renderer |= CatchEvent([&](Event e) {
+    if (app.HandleGlobalKeys(e)) return true;  // fire first
+    if (e == Event::Escape) { ... }
+});
+```
+
+**When to use:**
+| Pattern | Use case |
+|---|---|
+| `CatchEvent` local | Navigation keys (Arrow, j/k) — component must have focus |
+| `RegisterKeyHandler` global | Toggle/action keys (m, a, r, F5) — works from anywhere on the page |
+
 ## Conventions
 
 - **No comments in code** unless explicitly required

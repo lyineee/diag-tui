@@ -16,6 +16,22 @@ static std::string MaskHex(uint8_t m) {
 
 void DtcMaskFilter::OnChange(std::function<void(uint8_t)> cb) { on_change_ = std::move(cb); }
 
+void DtcMaskFilter::SetAll() {
+  mask = 0xFF;
+  for (int i = 0; i < 8; i++) bits_[i] = true;
+  if (on_change_) on_change_(mask);
+}
+
+void DtcMaskFilter::Invert() {
+  mask ^= 0xFF;
+  for (int i = 0; i < 8; i++) bits_[i] = mask & (1 << i);
+  if (on_change_) on_change_(mask);
+}
+
+void DtcMaskFilter::FocusFirst() {
+  if (check_list_) check_list_->SetActiveChild(0);
+}
+
 Component DtcMaskFilter::Build() {
   static const char* kNames[] = {
     "testFailed", "testFailedThisOperationCycle",
@@ -38,7 +54,7 @@ Component DtcMaskFilter::Build() {
 
   Components checks;
   for (int i = 0; i < 8; i++) checks.push_back(Checkbox(kNames[i], &bits_[i]));
-  auto check_list = Container::Vertical(std::move(checks));
+  check_list_ = Container::Vertical(std::move(checks));
 
   auto btn_all = Button("All (a)", [this, build] {
     for (int i = 0; i < 8; i++) bits_[i] = true;
@@ -64,7 +80,7 @@ Component DtcMaskFilter::Build() {
 
   auto show_expanded = [this] { return expanded; };
   auto show_collapsed = [this] { return !expanded; };
-  auto check_list_vis = Maybe(check_list, show_expanded);
+  auto check_list_vis = Maybe(check_list_, show_expanded);
   auto btn_bar_vis = Maybe(btn_bar, show_expanded);
   auto btn_expand_vis = Maybe(btn_expand, show_collapsed);
 
@@ -81,7 +97,7 @@ Component DtcMaskFilter::Build() {
     for (int i = 0; i < 8; i++) if (bits_[i]) mask |= (1 << i);
     if (mask != old && on_change_) on_change_(mask);
     return window(text(" DTC Status Mask "),
-      vbox({check_list->Render(), separator(), btn_bar->Render()}));
+      vbox({check_list_->Render(), separator(), btn_bar->Render()}));
   }) | CatchEvent([this, build, reset_bits](Event event) {
     if (!expanded) {
       if (event == Event::Character('m')) { expanded = true; return true; }
