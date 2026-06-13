@@ -26,6 +26,12 @@ void App::Init() {
   doip_->SetDiscoveryCallback([this](const std::vector<EcuInfo>& ecus) {
     OnDiscovery(ecus);
   });
+
+  doip_->SetStatusChangeCallback([this](bool connected) {
+    if (!connected) {
+      OnDisconnected();
+    }
+  });
 }
 
 void App::StartUdpDiscovery() {
@@ -73,6 +79,21 @@ void App::OnConnectResult(bool success, const std::string& msg) {
     state_.connected_ip = state_.config_ip;
   }
   spdlog::info("Connect result: {} - {}", success, msg);
+}
+
+void App::OnDisconnected() {
+  StopPolling();
+  {
+    std::lock_guard<std::recursive_mutex> lock(state_.mtx);
+    state_.connected = false;
+    state_.routing_ok = false;
+    state_.connecting = false;
+    state_.connected_ip.clear();
+    state_.status_message = "Connection lost";
+  }
+  if (screen_) {
+    screen_->PostEvent(ftxui::Event::Custom);
+  }
 }
 
 void App::OnDiscovery(const std::vector<EcuInfo>& ecus) {

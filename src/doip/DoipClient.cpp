@@ -272,6 +272,10 @@ void DoipClient::TcpReceiveThread() {
     if (n <= 0) {
       spdlog::warn("TCP connection lost");
       connected_ = false;
+      {
+        std::lock_guard<std::mutex> cb_lock(cb_mutex_);
+        if (status_cb_) status_cb_(false);
+      }
       break;
     }
 
@@ -363,6 +367,11 @@ void DoipClient::SetDiagnosticCallback(DiagnosticCallback cb) {
 void DoipClient::SetDiscoveryCallback(DiscoveryCallback cb) {
   std::lock_guard<std::mutex> lock(cb_mutex_);
   discovery_cb_ = std::move(cb);
+}
+
+void DoipClient::SetStatusChangeCallback(StatusChangeCallback cb) {
+  std::lock_guard<std::mutex> lock(cb_mutex_);
+  status_cb_ = std::move(cb);
 }
 
 std::vector<EcuInfo> DoipClient::GetDiscoveredEcuList() const {

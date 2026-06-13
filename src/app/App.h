@@ -94,6 +94,7 @@ private:
   void OnDiscovery(const std::vector<EcuInfo>& ecus);
   void OnConnectResult(bool success, const std::string& msg);
   void OnUdsResponse(const DiagResponse& resp);
+  void OnDisconnected();
 
   std::shared_ptr<DoipClient> doip_;
   std::shared_ptr<UdsClient> uds_;
