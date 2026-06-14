@@ -2,10 +2,10 @@
 #include "ui/StatusBar.h"
 #include "ui/NavBar.h"
 #include "ui/dtc/DtcPage.h"
-#include "ui/DidPage.h"
+#include "ui/did/DidPage.h"
 #include "ui/RawPage.h"
 #include "ui/SessionManager.h"
-#include "ui/SettingsPage.h"
+#include "ui/settings/SettingsPage.h"
 #include "uds/DidDatabase.h"
 
 #include <ftxui/dom/elements.hpp>

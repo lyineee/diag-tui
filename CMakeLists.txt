@@ -61,10 +61,14 @@ set(SOURCES
   src/ui/dtc/DtcListPanel.cpp
   src/ui/dtc/DtcMaskFilter.cpp
   src/ui/dtc/DtcSnapshotPanel.cpp
-  src/ui/DidPage.cpp
+  src/ui/did/DidPage.cpp
+  src/ui/did/DidBrowserPanel.cpp
+  src/ui/did/DidPollingBar.cpp
   src/ui/RawPage.cpp
   src/ui/SessionManager.cpp
-  src/ui/SettingsPage.cpp
+  src/ui/settings/SettingsPage.cpp
+  src/ui/settings/ConnectionPanel.cpp
+  src/ui/settings/EcuDiscoveryPanel.cpp
   src/ui/DidItem.cpp
   src/uds/UdsClient.cpp
   src/uds/DidDatabase.cpp
