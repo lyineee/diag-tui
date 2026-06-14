@@ -2,6 +2,7 @@
 
 #include "app/App.h"
 #include <ftxui/component/component.hpp>
+#include <ftxui/screen/box.hpp>
 
 class DtcSnapshotPanel {
 public:
@@ -12,4 +13,6 @@ public:
 private:
   App& app_;
   int selected_{0};
+  ftxui::Box list_box_;
+  ftxui::Component container_;
 };

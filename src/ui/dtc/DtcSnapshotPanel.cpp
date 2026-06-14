@@ -24,7 +24,11 @@ DtcSnapshotPanel::DtcSnapshotPanel(App& app) : app_(app) {}
 void DtcSnapshotPanel::Refresh() { app_.ReadDtcSnapshots(); }
 
 Component DtcSnapshotPanel::Build() {
-  return Renderer([this](bool) -> Element {
+  auto btn_refresh = Button("Refresh (F5)", [this] { Refresh(); }, ButtonOption::Ascii());
+  auto btn_bar = Container::Horizontal({btn_refresh});
+  auto btn_bar_wrap = Renderer(btn_bar, [] { return text(""); });
+
+  auto list_renderer = Renderer([this, btn_refresh](bool) -> Element {
     auto& state = app_.GetState();
     std::lock_guard<std::recursive_mutex> lock(state.mtx);
     const auto& dtcs = state.snapshot_list;
@@ -46,8 +50,7 @@ Component DtcSnapshotPanel::Build() {
       dtc_els.push_back(text(" No snapshots found "));
 
     auto title = " Snapshots (" + std::to_string(count) + " DTCs) ";
-    if (count == 0) title += " (F5:Refresh) ";
-    auto list_el = window(text(title), vbox(std::move(dtc_els)) | vscroll_indicator | yframe) | flex;
+    auto list_el = window(text(title), vbox(std::move(dtc_els)) | vscroll_indicator | yframe) | flex | reflect(list_box_);
 
     Element detail_el;
     if (selected_ >= 0 && selected_ < count) {
@@ -74,9 +77,30 @@ Component DtcSnapshotPanel::Build() {
     Elements body;
     body.push_back(hbox({list_el, separator(), detail_el}) | flex);
     body.push_back(separator());
-    body.push_back(status);
+    body.push_back(hbox({btn_refresh->Render(), separator() | flex, status}));
     return vbox(std::move(body)) | flex;
   }) | CatchEvent([this](Event event) {
+    if (event.is_mouse()) {
+      if (event.mouse().button == Mouse::WheelDown) {
+        auto& state = app_.GetState();
+        std::lock_guard<std::recursive_mutex> lock(state.mtx);
+        if (selected_ + 1 < (int)state.snapshot_list.size()) { selected_++; return true; }
+      }
+      if (event.mouse().button == Mouse::WheelUp) {
+        if (selected_ > 0) { selected_--; return true; }
+      }
+      if (event.mouse().button == Mouse::Left && event.mouse().motion == Mouse::Released) {
+        if (list_box_.Contain(event.mouse().x, event.mouse().y)) {
+          int row = event.mouse().y - list_box_.y_min - 1;
+          if (row >= 0) {
+            auto& state = app_.GetState();
+            std::lock_guard<std::recursive_mutex> lock(state.mtx);
+            if (row < (int)state.snapshot_list.size()) { selected_ = row; return true; }
+          }
+        }
+      }
+      return false;
+    }
     if (event == Event::ArrowDown || event == Event::Character('j')) {
       auto& state = app_.GetState();
       std::lock_guard<std::recursive_mutex> lock(state.mtx);
@@ -97,4 +121,10 @@ Component DtcSnapshotPanel::Build() {
     if (event == Event::F5) { Refresh(); return true; }
     return false;
   });
+
+  Components children;
+  children.push_back(list_renderer);
+  children.push_back(btn_bar_wrap);
+  container_ = Container::Vertical(std::move(children));
+  return container_;
 }
