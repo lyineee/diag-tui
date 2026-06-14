@@ -5,26 +5,23 @@
 
 using namespace ftxui;
 
-DtcPage::DtcPage(App& app) : app_(app), list_panel_(app) {
+DtcPage::DtcPage(App& app) : app_(app), list_panel_(app), snapshot_panel_(app) {
   DtcDatabase::Instance().Load("config/dtc_database.json");
 }
 
-void DtcPage::Refresh() { list_panel_.Refresh(); }
+void DtcPage::Refresh() {
+  if (tab_selected_ == 0) list_panel_.Refresh();
+  else snapshot_panel_.Refresh();
+}
 
 Component DtcPage::Build() {
-  tabs_ = {" DTC List "};
+  tabs_ = {" DTC List ", " Snapshots "};
   auto menu = Menu(&tabs_, &tab_selected_, MenuOption::HorizontalAnimated());
-  auto tab_content = Container::Tab({list_panel_.Build()}, &tab_selected_);
-
-  renderer_ = Renderer(
-    Container::Horizontal({menu, tab_content}),
-    [this, menu, tab_content] {
-      return vbox({
-        menu->Render(),
-        separator(),
-        tab_content->Render() | flex,
-      }) | flex;
-    });
-
+  auto tab_content = Container::Tab({list_panel_.Build(), snapshot_panel_.Build()}, &tab_selected_);
+  auto content_flex = Renderer(tab_content, [tab_content] {
+    return tab_content->Render() | flex;
+  });
+  renderer_ = Container::Vertical({menu, content_flex})
+    | Renderer([](Element e) { return e | flex; });
   return renderer_;
 }

@@ -22,7 +22,12 @@ public:
   void ReadDtcByStatusMask(uint8_t status_mask,
                            UdsResponseCallback cb = nullptr);
   void ReportNumberOfDTCByStatusMask(uint8_t status_mask,
+                                      UdsResponseCallback cb = nullptr);
+  void ReadDtcSnapshotIdentification(uint8_t status_mask,
                                      UdsResponseCallback cb = nullptr);
+  void ReadDtcSnapshotRecordByDTCNumber(const std::vector<uint8_t>& dtc_bytes,
+                                        uint8_t snapshot_number,
+                                        UdsResponseCallback cb = nullptr);
   void ClearDiagnosticInformation(uint16_t group = 0xFFFF,
                                   UdsResponseCallback cb = nullptr);
 

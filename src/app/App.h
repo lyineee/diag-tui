@@ -43,6 +43,8 @@ struct AppState {
   std::vector<DtcInfo> dtc_list;
   uint32_t dtc_count{0};
   uint8_t dtc_status_mask{0xFF};
+  std::vector<DtcInfo> snapshot_list;
+  std::vector<uint8_t> selected_snapshot_data;
   uint16_t last_manual_did_read{0};
   std::vector<uint8_t> last_manual_did_response;
   std::vector<EcuInfo> discovered_ecus;
@@ -75,6 +77,8 @@ public:
 
   void ReadDtc();
   void ReadDtcCount();
+  void ReadDtcSnapshots();
+  void ReadSnapshotRecord(uint32_t dtc_number, uint8_t snapshot_number);
   void ClearDtc();
   void ReadDid(uint16_t did);
   void ReadDidManual(uint16_t did);

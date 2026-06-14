@@ -47,6 +47,22 @@ void UdsClient::ReportNumberOfDTCByStatusMask(uint8_t status_mask,
   SendRequest(req, std::move(cb));
 }
 
+void UdsClient::ReadDtcSnapshotIdentification(uint8_t status_mask,
+                                               UdsResponseCallback cb) {
+  uint8_t payload[] = {0x00, status_mask};
+  auto req = UdsMessage::MakeRequest(0x19, 0x04, true, 1, payload, 2);
+  SendRequest(req, std::move(cb));
+}
+
+void UdsClient::ReadDtcSnapshotRecordByDTCNumber(
+    const std::vector<uint8_t>& dtc_bytes,
+    uint8_t snapshot_number,
+    UdsResponseCallback cb) {
+  uint8_t payload[4] = {dtc_bytes[0], dtc_bytes[1], dtc_bytes[2], snapshot_number};
+  auto req = UdsMessage::MakeRequest(0x19, 0x06, false, 0, payload, 4);
+  SendRequest(req, std::move(cb));
+}
+
 void UdsClient::ClearDiagnosticInformation(uint16_t group,
                                             UdsResponseCallback cb) {
   uint8_t payload[] = {(uint8_t)(group >> 8), (uint8_t)(group & 0xFF)};

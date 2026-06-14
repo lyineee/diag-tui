@@ -194,9 +194,6 @@ void DtcListPanel::RegisterGlobalKeys() {
     }
     if (event == Event::Character('m')) {
       mask_.expanded = true;
-      mask_.FocusFirst();
-      if (container_) container_->SetActiveChild(mask_component_.get());
-      mask_component_->TakeFocus();
       return true;
     }
     return false;

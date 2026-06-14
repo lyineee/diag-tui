@@ -83,6 +83,7 @@ enum class DtcFormatType : uint8_t {
 struct DtcInfo {
   uint32_t dtc_number{0};
   uint8_t status{0};
+  uint8_t snapshot_count{0};
   std::vector<uint8_t> snapshot_data;
 
   std::string CodeStr() const {

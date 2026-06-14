@@ -60,6 +60,7 @@ set(SOURCES
   src/ui/dtc/DtcPage.cpp
   src/ui/dtc/DtcListPanel.cpp
   src/ui/dtc/DtcMaskFilter.cpp
+  src/ui/dtc/DtcSnapshotPanel.cpp
   src/ui/DidPage.cpp
   src/ui/RawPage.cpp
   src/ui/SessionManager.cpp

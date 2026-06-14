@@ -73,6 +73,7 @@ int main() {
       nav_component,
       main_container,
   });
+  main_container->TakeFocus();
 
   auto full_layout = Container::Vertical({
       status_component,

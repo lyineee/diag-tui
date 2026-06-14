@@ -115,6 +115,7 @@ void App::OnUdsResponse(const DiagResponse& resp) {
 
   bool did_updated = false;
   bool dtc_updated = false;
+  bool snapshot_updated = false;
 
   if (resp.success) {
     if (resp.mode == 0x19) {
@@ -130,6 +131,28 @@ void App::OnUdsResponse(const DiagResponse& resp) {
                              resp.payload[i+2];
         }
         state_.status_message = std::to_string(state_.dtc_count) + " DTC(s) counted";
+      } else if (resp.payload.size() >= 1 && resp.payload[0] == 0x04) {
+        snapshot_updated = true;
+        state_.snapshot_list.clear();
+        size_t off = 1;
+        if (off < resp.payload.size()) off++;
+        while (off + 4 <= resp.payload.size()) {
+          DtcInfo dtc;
+          dtc.dtc_number = ((uint32_t)resp.payload[off] << 16) |
+                           ((uint32_t)resp.payload[off+1] << 8) |
+                           resp.payload[off+2];
+          dtc.status = resp.payload[off+3];
+          dtc.snapshot_count = (off + 5 <= resp.payload.size()) ? resp.payload[off+5] : 0;
+          off += 5;
+          state_.snapshot_list.push_back(dtc);
+        }
+        state_.status_message = std::to_string(state_.snapshot_list.size()) + " DTC(s) with snapshots";
+      } else if (resp.payload.size() >= 5 && resp.payload[0] == 0x06) {
+        snapshot_updated = true;
+        state_.selected_snapshot_data.clear();
+        if (resp.payload.size() > 5)
+          state_.selected_snapshot_data.assign(resp.payload.begin() + 5, resp.payload.end());
+        state_.status_message = "Snapshot record (" + std::to_string(state_.selected_snapshot_data.size()) + " bytes)";
       } else {
         state_.dtc_list.clear();
         size_t off = 0;
@@ -214,7 +237,7 @@ void App::OnUdsResponse(const DiagResponse& resp) {
     state_.raw_response_text = ss.str();
   }
 
-  if ((did_updated || dtc_updated) && screen_) {
+  if ((did_updated || dtc_updated || snapshot_updated) && screen_) {
     screen_->PostEvent(ftxui::Event::Custom);
   }
 
@@ -247,6 +270,19 @@ void App::ReadDtc() {
 void App::ReadDtcCount() {
   std::lock_guard<std::recursive_mutex> lock(state_.mtx);
   uds_->ReportNumberOfDTCByStatusMask(state_.dtc_status_mask);
+}
+
+void App::ReadDtcSnapshots() {
+  std::lock_guard<std::recursive_mutex> lock(state_.mtx);
+  uds_->ReadDtcSnapshotIdentification(state_.dtc_status_mask);
+}
+
+void App::ReadSnapshotRecord(uint32_t dtc_number, uint8_t snapshot_number) {
+  std::vector<uint8_t> dtc_bytes(3);
+  dtc_bytes[0] = (dtc_number >> 16) & 0xFF;
+  dtc_bytes[1] = (dtc_number >> 8) & 0xFF;
+  dtc_bytes[2] = dtc_number & 0xFF;
+  uds_->ReadDtcSnapshotRecordByDTCNumber(dtc_bytes, snapshot_number);
 }
 
 void App::ClearDtc() {

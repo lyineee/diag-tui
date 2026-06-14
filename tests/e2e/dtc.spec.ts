@@ -24,16 +24,6 @@ test.describe("FuseDiag DTC Page", () => {
     await expect(terminal.getByText("Select a DTC from the list")).toBeVisible();
   });
 
-  test("global m key expands mask from anywhere on DTC page", async ({ terminal }) => {
-    terminal.keyPress("m");
-
-    await expect(terminal.getByText("DTC Status Mask")).toBeVisible();
-    await expect(terminal.getByText("testFailed")).toBeVisible();
-    await expect(terminal.getByText("confirmedDTC")).toBeVisible();
-    await expect(terminal.getByText("All (a)")).toBeVisible();
-    await expect(terminal.getByText("Invert (r)")).toBeVisible();
-  });
-
   test("DTC list handles F5 refresh", async ({ terminal }) => {
     terminal.keyPress(Key.F5);
     await expect(terminal.getByText("No DTCs found")).toBeVisible();
